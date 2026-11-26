@@ -66,8 +66,12 @@ Poprawki w zatwierdzonych krokach są dozwolone, jeśli wymaga ich bieżący kro
 ## 4. Stos technologiczny
 React + Vite + Tailwind CSS v4 + vite-plugin-pwa (Workbox). IndexedDB przez Dexie.js od Kroku 2. Ikony lucide-react (wbudowane w paczkę, działają offline).
 Bez zewnętrznych czcionek, CDN ani zapytań sieciowych w czasie działania. Routing przez `#/hash` (działa na każdym hostingu statycznym i z przyciskiem „Wstecz” Androida).
-Hosting: Netlify (lub dowolny statyczny z HTTPS). Tablet pobiera aplikację raz przez Wi-Fi, później działa bez sieci.
+Hosting: **GitHub Pages** – repozytorium `jureckislawomir-ctrl/asystent-kdr` (publiczne), adres **https://jureckislawomir-ctrl.github.io/asystent-kdr/**.
+Publikacja: push do `main` → workflow `.github/workflows/deploy.yml` (test logiki WSZP → build z `BASE_PATH=/asystent-kdr/` → Pages). Bez limitu wdrożeń.
+Ścieżki w kodzie zawsze względem `import.meta.env.BASE_URL` / `%BASE_URL%` (aplikacja działa w podkatalogu).
+Netlify (asystent-kdr.netlify.app) – porzucony 26.11.2026 z powodu limitu kredytów (15 kredytów/wdrożenie); nie wdrażać tam.
+Tablet pobiera aplikację raz przez Wi-Fi, później działa bez sieci. Capacitor (APK) – później, decyzja użytkownika; tablety pozwalają instalować APK.
 
 ## 5. Status
 - KROK 1: **zatwierdzony** 26.11.2026 (wersja 0.1.6, Galaxy Tab Active5 Pro, Android 16).
-- KROK 2: oddany do testów (wersja 0.2.3), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (105/105 z wykresem WSZP).
+- KROK 2: oddany do testów (wersja 0.2.4, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (105/105 z wykresem WSZP).

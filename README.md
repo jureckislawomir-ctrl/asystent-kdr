@@ -1,4 +1,4 @@
-# Asystent KDR (Krok 1: szkielet PWA)
+# Asystent KDR
 
 Aplikacja wspierająca Kierującego Działaniem Ratowniczym. Działa w całości offline na tablecie z Androidem.
 Reguły projektu i plan kroków: `CLAUDE.md`.
@@ -10,6 +10,8 @@ React 19 + Vite 8 + Tailwind CSS 4 + vite-plugin-pwa (Workbox) + lucide-react (i
 ```
 asystent-kdr/
 ├─ CLAUDE.md                 reguły projektu (prompt z poprawkami)
+├─ .github/workflows/        publikacja na GitHub Pages
+├─ tools/test_odo_logic.mjs  test wzorów ODO z wykresem WSZP
 ├─ index.html                motyw ustawiany przed startem (bez błysku w nocy)
 ├─ vite.config.js            konfiguracja PWA: manifest, Service Worker, aktualizacje na żądanie
 ├─ public/
@@ -36,4 +38,6 @@ npm run preview    # podgląd wersji produkcyjnej z trybem offline
 ```
 
 ## Publikacja
-Zawartość `dist/` wrzucić na dowolny hosting z HTTPS (np. Netlify). Service Worker działa tylko przez HTTPS (lub na `localhost`).
+Automatycznie na GitHub Pages po każdym pushu do `main` (`.github/workflows/deploy.yml`): test logiki WSZP → build → publikacja.
+Adres: https://jureckislawomir-ctrl.github.io/asystent-kdr/
+Lokalny build pod ten sam podkatalog: `BASE_PATH=/asystent-kdr/ npm run build`.
