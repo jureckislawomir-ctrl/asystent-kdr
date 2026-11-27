@@ -1,6 +1,6 @@
 import Dexie from 'dexie'
 import { readSetting, writeSetting } from '../../lib/storage'
-import { DEFAULT_SETTINGS, prognosis, joinP, fmtDuration } from './logic'
+import { DEFAULT_SETTINGS, joinP, fmtDuration, rotaPrognosis } from './logic'
 
 // Baza w pamięci tabletu (IndexedDB). Dziennik (events) jest tylko dopisywany – korekta = nowy wpis.
 export const db = new Dexie('asystent-kdr')
@@ -93,9 +93,8 @@ export const createRota = ({ label, members, spolem, pressures, at }) =>
         createdAt: Date.now(), readings: [{ type: 'entry', at, p: pressures }], snoozeUntil: null,
       }
       const id = await db.rotas.add(rota)
-      const progs = pressures.map((p) => prognosis(p, null, action.settings.reserve))
       await log(action.id, id, 'entry',
-        `${who(rota)} – WEJŚCIE: ${joinP(pressures)} bar. WYCOFAJ (bez PRACY): ${joinP(progs)} bar. ${spolemText(spolem)}.`, at)
+        `${who(rota)} – WEJŚCIE: ${joinP(pressures)} bar. WYCOFAJ roty (bez PRACY): ${rotaPrognosis(rota, action.settings.reserve)} bar. ${spolemText(spolem)}.`, at)
       return id
     }),
   )
@@ -123,9 +122,8 @@ export const enterRA = (rotaId, { spolem, pressures, at }) =>
       rota.spolem = spolem
       rota.readings.push({ type: 'entry', at, p: pressures })
       await db.rotas.put(rota)
-      const progs = pressures.map((p) => prognosis(p, null, action.settings.reserve))
       await log(rota.actionId, rotaId, 'entry',
-        `${who(rota)} – WEJŚCIE ROTY ASEKURACYJNEJ: ${joinP(pressures)} bar. WYCOFAJ (bez PRACY): ${joinP(progs)} bar. ${spolemText(spolem)}. Wyznacz nową rotę asekuracyjną.`, at)
+        `${who(rota)} – WEJŚCIE ROTY ASEKURACYJNEJ: ${joinP(pressures)} bar. WYCOFAJ roty (bez PRACY): ${rotaPrognosis(rota, action.settings.reserve)} bar. ${spolemText(spolem)}. Wyznacz nową rotę asekuracyjną.`, at)
     }),
   )
 
@@ -138,17 +136,9 @@ export const addReading = (rotaId, type, pressures, at) =>
       rota.snoozeUntil = null
       await db.rotas.put(rota)
       if (type === 'workpoint') {
-        const entry = rota.readings.find((r) => r.type === 'entry')
-        if (pressures.length === 1) {
-          // jedno pole: najniższe w rocie → WYCOFAJ roty = R + (najwyższe WEJŚCIE − najniższe PRACA)
-          const progs = rota.members.map((_, i) => prognosis(entry?.p[i], pressures[0], action.settings.reserve)).filter(Number.isFinite)
-          await log(rota.actionId, rotaId, 'workpoint',
-            `${who(rota)} – PRACA: ${pressures[0]} bar (najniższe w rocie). WYCOFAJ roty: ${progs.length ? Math.max(...progs) : '—'} bar.`, at)
-        } else {
-          const progs = pressures.map((p, i) => prognosis(entry?.p[i], p, action.settings.reserve))
-          await log(rota.actionId, rotaId, 'workpoint',
-            `${who(rota)} – PRACA: ${joinP(pressures)} bar. WYCOFAJ: ${joinP(progs)} bar.`, at)
-        }
+        // WYCOFAJ roty = R + (najniższe WEJŚCIE − najniższe PRACA)
+        await log(rota.actionId, rotaId, 'workpoint',
+          `${who(rota)} – PRACA: ${joinP(pressures)} bar (najniższe w rocie). WYCOFAJ roty: ${rotaPrognosis(rota, action.settings.reserve)} bar.`, at)
       } else {
         await log(rota.actionId, rotaId, 'check', `${who(rota)} – kontrola: ${joinP(pressures)} bar${pressures.length === 1 ? ' (najniższe w rocie)' : ''}.`, at)
       }

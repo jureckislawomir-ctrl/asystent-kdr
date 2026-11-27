@@ -153,9 +153,10 @@ function MembersEditor({ members, setMembers }) {
 // okna z SPOŁEM: w poziomie dwie kolumny (dane | ciśnienia + klawiatura) – całość bez przewijania
 const twoCols = 'flex flex-col gap-4 landscape:grid landscape:grid-cols-[1fr_minmax(340px,44%)] landscape:items-start'
 
-const entryExtra = (v, settings) => {
-  const p = Number(v)
-  return v && Number.isFinite(p) ? `${entryHint(v)} · WYCOFAJ: ${prognosis(p, null, settings.reserve)}` : entryHint(v)
+// pod polem WEJŚCIA: WYCOFAJ roty liczone od najniższego z wpisanych ciśnień
+const entryExtra = (values, i, settings) => {
+  const nums = values.map(Number).filter((n, k) => values[k] !== '' && Number.isFinite(n))
+  return nums.length ? `${entryHint(values[i])} · WYCOFAJ roty: ${prognosis(Math.min(...nums), null, settings.reserve)}` : entryHint(values[i])
 }
 
 const entryHint = (v) => {
@@ -223,7 +224,7 @@ export function NewRotaDialog() {
             setValues={setVals}
             active={Math.min(active, members.length - 1)}
             setActive={setActive}
-            extra={(i) => entryExtra(values[i], settings)}
+            extra={(i) => entryExtra(values, i, settings)}
           />
         </section>
       </div>
@@ -268,7 +269,7 @@ const LOWEST_LABEL = 'Wprowadź NAJNIŻSZE ciśnienie w rocie'
 function checkHint(p, rs, settings) {
   const prev = rs.pressure
   const prog = rs.prognosis
-  let s = `WYCOFAJ roty ${prog ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''} · poprzednio ${prev ?? '—'} bar`
+  let s = `WYCOFAJ roty ${prog ?? '—'} · poprzednio ${prev ?? '—'} bar`
   if (Number.isFinite(p) && Number.isFinite(prev) && p > prev + 5) s += ' · ⚠ wyżej niż poprzednio – sprawdź'
   else if (Number.isFinite(p) && Number.isFinite(prog)) {
     const d = p - prog
@@ -304,15 +305,14 @@ export function PressureDialog({ type, rotaId }) {
 
   const rs = rotaStatus(rota, settings)
   const fieldNames = single ? [LOWEST_LABEL] : rota.members
-  const entryMax = entry ? Math.max(...entry.p.filter(Number.isFinite)) : null
-  const entryMin = entry ? Math.min(...entry.p.filter(Number.isFinite)) : null
+  const entryMin = rs.entryMin
 
   const extra = (i) => {
     const p = nums[i]
-    if (type === 'enterRA') return entryExtra(vals[i], settings)
+    if (type === 'enterRA') return entryExtra(vals, i, settings)
     if (type === 'workpoint') {
-      const prog = Number.isFinite(p) ? prognosis(entryMax, p, settings.reserve) : null
-      return `najwyższe WEJŚCIE ${entryMax ?? '—'} bar${prog != null ? ` → WYCOFAJ roty: ${prog} bar` : ''}`
+      const prog = Number.isFinite(p) ? prognosis(entryMin, p, settings.reserve) : null
+      return `najniższe WEJŚCIE ${entryMin ?? '—'} bar${prog != null ? ` → WYCOFAJ roty: ${prog} bar` : ''}`
     }
     if (type === 'exit') {
       const prev = readingMin(rota.readings[rota.readings.length - 1])
@@ -387,7 +387,7 @@ export function PressureDialog({ type, rotaId }) {
       <div className="flex flex-col gap-4">
         {type === 'workpoint' && (
           <p className="text-muted">
-            WYCOFAJ roty = {settings.reserve} + (najwyższe WEJŚCIE − najniższe PRACA).
+            WYCOFAJ roty = {settings.reserve} + (najniższe WEJŚCIE − najniższe PRACA).
           </p>
         )}
         <PressureFields names={fieldNames} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} bases={bases} />
@@ -412,7 +412,7 @@ export function DecisionDialog({ rotaId, manual = false }) {
   if (!rota) return null
   const rs = rotaStatus(rota, settings)
   const reachedNow = rs.state === 'reached'
-  const desc = `najniższe ${rs.pressure ?? '—'} bar / WYCOFAJ roty ${rs.prognosis ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''}`
+  const desc = `najniższe ${rs.pressure ?? '—'} bar / WYCOFAJ roty ${rs.prognosis ?? '—'}`
 
   const typed = toNums(vals)[0]
   const withdraw = async () => {
@@ -439,7 +439,7 @@ export function DecisionDialog({ rotaId, manual = false }) {
             <span className="tabular text-5xl font-black">{rs.pressure ?? '—'}</span>
           </div>
           <div className="flex flex-col text-right">
-            <span className="text-sm font-bold uppercase text-muted">WYCOFAJ roty{rs.criticalName ? ` (${rs.criticalName})` : ''}</span>
+            <span className="text-sm font-bold uppercase text-muted">WYCOFAJ roty</span>
             <span className="tabular text-5xl font-black">{rs.prognosis ?? '—'}</span>
           </div>
           <span className="col-span-2 text-xl font-black">

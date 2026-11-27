@@ -40,55 +40,35 @@ export function readingMin(reading) {
 }
 
 /**
- * PRACA ratownika i. Od 0.2.10 PRACA ma jedno pole – najniższe ciśnienie w rocie (p = [x]):
- * nie wiadomo, kto je ma, więc przyjmujemy je dla każdego ratownika (strona bezpieczna).
- * Starsze wpisy – po jednym na ratownika.
+ * WYCOFAJ roty – zawsze od NAJNIŻSZEGO wprowadzonego ciśnienia, niezależnie od tego, czyje to ciśnienie
+ * (decyzja użytkownika 27.11, zasada „dwóch wchodzi, dwóch wychodzi”):
+ * - z PRACĄ:  R + (najniższe WEJŚCIE − najniższe PRACA)
+ * - bez PRACY: (najniższe WEJŚCIE − R) / 2 + R
  */
-export const workPointOf = (wp, i) => (wp ? (wp.p.length === 1 ? wp.p[0] : wp.p[i]) : undefined)
-export const isRotaWorkPoint = (wp) => !!wp && wp.p.length === 1
-
-/**
- * Prognozy wszystkich ratowników roty.
- * Przy PRACY z jednym polem najwyższa z nich = R + (najwyższe WEJŚCIE − najniższe PRACA):
- * górna granica zużycia w rocie – wycofanie nigdy później niż dla ratownika, który faktycznie zużył najwięcej.
- */
-export function rotaPrognoses(rota, reserve) {
+export function rotaPrognosis(rota, reserve) {
   const entry = rota.readings.find((r) => r.type === 'entry')
   const wp = rota.readings.find((r) => r.type === 'workpoint')
-  return rota.members.map((_, i) => prognosis(entry?.p[i], workPointOf(wp, i), reserve))
+  return prognosis(readingMin(entry), readingMin(wp), reserve)
 }
 
 /**
- * Stan roty wg zasady „dwóch wchodzi, dwóch wychodzi”:
- * - WYCOFAJ roty = NAJWYŻSZA prognoza z ratowników (ten, kto musi wycofać się najwcześniej),
- * - ciśnienie roty = NAJNIŻSZE z ostatniego odczytu,
- * - stan = porównanie tych dwóch wartości.
+ * Stan roty: najniższe ciśnienie z ostatniego odczytu porównane z WYCOFAJ roty.
  */
 export function rotaStatus(rota, settings) {
   const entry = rota.readings.find((r) => r.type === 'entry')
   const wp = rota.readings.find((r) => r.type === 'workpoint')
-  const progs = rotaPrognoses(rota, settings.reserve)
-  const finite = progs.filter(Number.isFinite)
-  const prog = finite.length ? Math.max(...finite) : null
-  const critical = prog === null ? -1 : progs.indexOf(prog)
+  const prog = rotaPrognosis(rota, settings.reserve)
   const last = rota.readings[rota.readings.length - 1]
   const pressure = readingMin(last)
   return {
     prognosis: prog,
-    // przy PRACY z jednym polem WYCOFAJ dotyczy całej roty – bez wskazywania ratownika
-    criticalName: critical >= 0 && !isRotaWorkPoint(wp) ? rota.members[critical] || `Ratownik ${critical + 1}` : null,
+    entryMin: readingMin(entry),
+    workPointMin: readingMin(wp),
     pressure,
     lastAt: last?.at ?? null,
     lastType: last?.type ?? null,
     margin: Number.isFinite(pressure) && Number.isFinite(prog) ? pressure - prog : null,
     state: memberState(pressure, prog, settings.marginBar),
-    members: rota.members.map((name, i) => ({
-      name,
-      entry: entry?.p[i] ?? null,
-      workPoint: workPointOf(wp, i) ?? null,
-      prognosis: progs[i],
-      critical: i === critical,
-    })),
   }
 }
 

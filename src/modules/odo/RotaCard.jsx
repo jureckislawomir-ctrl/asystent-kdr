@@ -69,7 +69,7 @@ export function RotaCard({ rota }) {
               <span className="tabular text-5xl font-black leading-none">{rs.pressure ?? '—'}</span>
             </div>
             <div className="flex flex-col text-right">
-              <span className="truncate text-xs font-black uppercase text-muted">WYCOFAJ{rs.criticalName ? ` · ${rs.criticalName}` : ''}</span>
+              <span className="truncate text-xs font-black uppercase text-muted">WYCOFAJ</span>
               <span className="tabular text-5xl font-black leading-none">{rs.prognosis ?? '—'}</span>
             </div>
             {worst === 'reached' && <span className="col-span-2 mt-1 text-base font-black">WYCOFAJ – OSIĄGNIĘTE</span>}

@@ -5,7 +5,7 @@ import { Btn, Dialog } from '../../components/ui'
 import { useOdo } from './OdoContext'
 import { RotaCard, RAPlaceholder, OutRow } from './RotaCard'
 import { db, deleteAction } from './db'
-import { ACTIVE_STATUSES, fmtHM, prognosis, readingMin, workPointOf, isRotaWorkPoint, rotaStatus } from './logic'
+import { ACTIVE_STATUSES, fmtHM, readingMin, rotaPrognosis } from './logic'
 import { buildReportText } from './report'
 import { notificationStatus, requestNotifications } from './dialogs'
 
@@ -260,7 +260,7 @@ function Report({ actionId, onBack }) {
                         <th className="border-2 border-line px-2">Ratownik</th>
                         <th className="border-2 border-line px-2">WEJŚCIE {fmtHM(entry.at)}</th>
                         <th className="border-2 border-line px-2">PRACA {wp ? fmtHM(wp.at) : ''}</th>
-                        <th className="border-2 border-line px-2">WYCOFAJ</th>
+                        <th className="border-2 border-line px-2">WYCOFAJ roty</th>
                         {checks.map((c, k) => (
                           <th key={k} className="border-2 border-line px-2">Kontrola {fmtHM(c.at)} (najniższe)</th>
                         ))}
@@ -272,17 +272,14 @@ function Report({ actionId, onBack }) {
                         <tr key={i}>
                           <td className="border-2 border-line px-2 font-bold">{m || `Ratownik ${i + 1}`}</td>
                           <td className="border-2 border-line px-2">{entry.p[i]}</td>
-                          {isRotaWorkPoint(wp) ? (
-                            i === 0 && (
-                              <>
-                                <td rowSpan={r.members.length} className="border-2 border-line px-2 text-center font-bold">{wp.p[0]} (najniższe)</td>
-                                <td rowSpan={r.members.length} className="border-2 border-line px-2 text-center font-black">{rotaStatus(r, s).prognosis}</td>
-                              </>
-                            )
-                          ) : (
+                          {i === 0 && (
                             <>
-                              <td className="border-2 border-line px-2">{wp ? wp.p[i] : '—'}</td>
-                              <td className="border-2 border-line px-2 font-black">{prognosis(entry.p[i], workPointOf(wp, i), s.reserve)}</td>
+                              <td rowSpan={r.members.length} className="border-2 border-line px-2 text-center font-bold">
+                                {wp ? `${readingMin(wp)} (najniższe)` : '—'}
+                              </td>
+                              <td rowSpan={r.members.length} className="border-2 border-line px-2 text-center font-black">
+                                {rotaPrognosis(r, s.reserve)}
+                              </td>
                             </>
                           )}
                           {i === 0 &&
