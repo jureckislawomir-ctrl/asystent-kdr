@@ -68,6 +68,7 @@ function Shell() {
     <div className="flex h-full flex-col">
       <TopBar theme={theme} onToggleTheme={toggle} online={online} wakeLock={wakeLock} pwa={pwa} storage={storage} onLock={lock} />
       {pwa.needRefresh && <UpdateBanner onUpdate={pwa.applyUpdate} onLater={pwa.postponeUpdate} />}
+      <AppErrorBanner />
       <StorageErrorBanner />
       <AudioGuard />
 
@@ -83,6 +84,37 @@ function Shell() {
       <DialogHost />
       {locked && <TouchLockOverlay onUnlock={() => setLocked(false)} />}
       <AlarmHost onUnlock={() => setLocked(false)} onNavigate={navigate} />
+    </div>
+  )
+}
+
+// Każdy nieobsłużony błąd – widoczny na ekranie (diagnostyka na tablecie bez komputera)
+function AppErrorBanner() {
+  const [errs, setErrs] = useState([])
+  useEffect(() => {
+    const add = (msg) => setErrs((e) => [...e.slice(-2), `${new Date().toLocaleTimeString('pl-PL')} ${msg}`])
+    const onErr = (e) => add(e?.message || String(e?.error || 'nieznany błąd'))
+    const onRej = (e) => add(e?.reason?.message || String(e?.reason || 'nieznany błąd'))
+    window.addEventListener('error', onErr)
+    window.addEventListener('unhandledrejection', onRej)
+    return () => {
+      window.removeEventListener('error', onErr)
+      window.removeEventListener('unhandledrejection', onRej)
+    }
+  }, [])
+  if (!errs.length) return null
+  return (
+    <div role="alert" className="no-print flex flex-wrap items-center gap-3 border-b-4 border-alarm bg-surface px-3 py-2 text-alarm">
+      <TriangleAlert size={26} />
+      <div className="mr-auto text-sm font-bold">
+        <p className="text-base font-black">BŁĄD APLIKACJI – zrób zrzut ekranu i prześlij:</p>
+        {errs.map((m, i) => (
+          <p key={i} className="tabular">{m}</p>
+        ))}
+      </div>
+      <button type="button" onClick={() => setErrs([])} className="min-h-14 rounded-lg border-2 border-alarm px-4 font-bold">
+        Zamknij
+      </button>
     </div>
   )
 }

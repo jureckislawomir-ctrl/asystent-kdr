@@ -23,6 +23,28 @@ async function safe(fn) {
   }
 }
 
+// ---------- test bazy przy starcie (diagnostyka) ----------
+const withTimeout = (p, ms) =>
+  Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error(`brak odpowiedzi bazy (>${ms / 1000} s)`)), ms))])
+
+export async function dbHealth() {
+  const t0 = performance.now()
+  try {
+    await withTimeout(
+      db.transaction('rw', db.events, async () => {
+        const id = await db.events.add({ actionId: -1, rotaId: null, at: Date.now(), type: 'probe', text: '' })
+        await db.events.delete(id)
+      }),
+      5000,
+    )
+    return { ok: true, ms: Math.round(performance.now() - t0) }
+  } catch (e) {
+    return { ok: false, error: e?.message || String(e) }
+  }
+}
+
+db.on('blocked', () => errorListeners.forEach((l) => l(new Error('Baza zablokowana przez inne okno aplikacji – zamknij pozostałe okna/karty Asystenta KDR.'))))
+
 // ---------- ustawienia ----------
 export const getDefaultSettings = () => ({ ...DEFAULT_SETTINGS, ...readSetting('odo.settings', {}) })
 export const saveDefaultSettings = (s) => writeSetting('odo.settings', s)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { TriangleAlert, Check } from 'lucide-react'
 import { Btn, Dialog, PressureFields, TimeAdjust } from '../../components/ui'
 import { useOdo } from './OdoContext'
@@ -7,6 +7,38 @@ import {
 } from './db'
 import { prognosis, rotaMemberStatus, lastPressure, ACTIVE_STATUSES } from './logic'
 import { unlockAudio, testAlarm } from './audio'
+
+/** Zapis z widocznym stanem: „Zapisywanie…”, ostrzeżenie po 3 s, komunikat błędu – nic nie ginie po cichu. */
+function useSaving() {
+  const [st, setSt] = useState({ busy: false, slow: false, error: null })
+  const timer = useRef(0)
+  const run = (fn) => async () => {
+    if (st.busy) return
+    setSt({ busy: true, slow: false, error: null })
+    timer.current = setTimeout(() => setSt((s) => ({ ...s, slow: true })), 3000)
+    try {
+      await fn()
+      clearTimeout(timer.current)
+      setSt({ busy: false, slow: false, error: null })
+    } catch (e) {
+      clearTimeout(timer.current)
+      console.error('[ODO] zapis nieudany', e)
+      setSt({ busy: false, slow: false, error: e?.message || String(e) })
+    }
+  }
+  return [run, st]
+}
+
+function SaveStatus({ st }) {
+  if (st.error)
+    return (
+      <p className="mr-auto flex max-w-xl items-center gap-2 font-bold text-alarm" role="alert">
+        <TriangleAlert size={22} className="shrink-0" /> Zapis nieudany: {st.error}
+      </p>
+    )
+  if (st.slow) return <p className="mr-auto font-bold text-warn">Zapis trwa dłużej niż zwykle…</p>
+  return null
+}
 
 const inputCls = 'min-h-14 w-full rounded-lg border-2 border-line bg-bg px-3 text-xl font-bold text-fg'
 const toNums = (vals) => vals.map((v) => (v === '' || v == null ? NaN : Number(v)))
@@ -108,11 +140,12 @@ export function NewRotaDialog() {
   const nums = toNums(values)
   const ok = label.trim() && allValid(nums)
 
-  const save = async () => {
+  const [run, st] = useSaving()
+  const save = run(async () => {
     unlockAudio()
     await createRota({ label: label.trim(), members: members.map((m) => m.trim()), spolem, pressures: nums, at: atFromOffset(off) })
     close()
-  }
+  })
 
   return (
     <Dialog
@@ -120,9 +153,12 @@ export function NewRotaDialog() {
       title="Nowa rota – WEJŚCIE"
       onClose={close}
       footer={
-        <Btn variant="primary" className="min-w-56 text-xl" disabled={!ok} onClick={save}>
-          {spolemComplete(spolem) ? 'WEJŚCIE' : 'WEJŚCIE (SPOŁEM niepełne)'}
-        </Btn>
+        <>
+          <SaveStatus st={st} />
+          <Btn variant="primary" className="min-w-56 text-xl" disabled={!ok || st.busy} onClick={save}>
+            {st.busy ? 'Zapisywanie…' : spolemComplete(spolem) ? 'WEJŚCIE' : 'WEJŚCIE (SPOŁEM niepełne)'}
+          </Btn>
+        </>
       }
     >
       <div className="flex flex-col gap-5">
@@ -215,7 +251,8 @@ export function PressureDialog({ type, rotaId }) {
     return s
   }
 
-  const save = async () => {
+  const [run, st] = useSaving()
+  const save = run(async () => {
     unlockAudio()
     const at = atFromOffset(off)
     if (type === 'exit') {
@@ -234,7 +271,7 @@ export function PressureDialog({ type, rotaId }) {
     const status = rotaMemberStatus(fresh, settings)
     if (fresh.status === 'in' && status.some((m) => m.state === 'near' || m.state === 'reached')) open('decision', { rotaId: rota.id })
     else close()
-  }
+  })
 
   return (
     <Dialog
@@ -242,9 +279,12 @@ export function PressureDialog({ type, rotaId }) {
       title={`${TITLES[type]} – ${rota.label}`}
       onClose={close}
       footer={
-        <Btn variant="primary" className="min-w-56 text-xl" disabled={!ok} onClick={save}>
-          {type === 'exit' ? 'ZAPISZ WYJŚCIE' : type === 'enterRA' ? 'WEJŚCIE RA' : type === 'workpoint' ? 'ZAPISZ PRACĘ' : 'ZAPISZ'}
-        </Btn>
+        <>
+          <SaveStatus st={st} />
+          <Btn variant="primary" className="min-w-56 text-xl" disabled={!ok || st.busy} onClick={save}>
+          {st.busy ? 'Zapisywanie…' : type === 'exit' ? 'ZAPISZ WYJŚCIE' : type === 'enterRA' ? 'WEJŚCIE RA' : type === 'workpoint' ? 'ZAPISZ PRACĘ' : 'ZAPISZ'}
+          </Btn>
+        </>
       }
     >
       <div className="flex flex-col gap-5">

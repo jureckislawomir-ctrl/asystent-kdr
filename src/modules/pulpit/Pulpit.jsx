@@ -5,6 +5,8 @@ import { appChip } from '../../components/TopBar'
 import { useOdo } from '../odo/OdoContext'
 import { ACTIVE_STATUSES } from '../odo/logic'
 import { useStorageEstimate } from '../../hooks/useStorageEstimate'
+import { useEffect, useState } from 'react'
+import { dbHealth } from '../odo/db'
 
 const STORAGE_LABEL = { persistent: 'trwała', 'not-persistent': 'nietrwała', unsupported: 'nieobsługiwana', checking: 'sprawdzanie' }
 
@@ -12,6 +14,10 @@ export default function Pulpit({ onNavigate, pwa, storage, wakeLock }) {
   const now = useClock()
   const { rotas } = useOdo()
   const usage = useStorageEstimate()
+  const [health, setHealth] = useState('baza: test…')
+  useEffect(() => {
+    dbHealth().then((h) => setHealth(h.ok ? `baza: ${h.ms} ms` : `BAZA: ${h.error}`))
+  }, [])
   const inZone = rotas.filter((r) => ACTIVE_STATUSES.includes(r.status))
   // diagnostyka techniczna – małym drukiem, do sprawdzania w razie problemu
   const diag = [
@@ -19,6 +25,7 @@ export default function Pulpit({ onNavigate, pwa, storage, wakeLock }) {
     `pamięć: ${STORAGE_LABEL[storage.status]}`,
     `blokada ekranu: ${!wakeLock.supported ? 'nieobsługiwana' : wakeLock.active ? 'aktywna' : 'nieaktywna'}`,
     usage,
+    health,
   ].filter(Boolean).join(' · ')
 
   return (
