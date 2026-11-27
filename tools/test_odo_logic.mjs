@@ -75,5 +75,17 @@ check(readingMin({ p: [130, 120] }) === 120, 'stary wpis kontroli z dwoma polami
 check(rotaStatus({ members: ['A', 'B'], readings: [{ type: 'entry', at: t0, p: [300, 280] }] }, S).prognosis === 180,
   'bez PRACY: WYCOFAJ roty = max(180, 170) = 180')
 
+// PRACA z jednym polem (najniższe w rocie): WYCOFAJ roty = R + (najwyższe WEJŚCIE − najniższe PRACA)
+const wp1 = { members: ['Michał', 'Paweł'], readings: [
+  { type: 'entry', at: t0, p: [310, 300] },
+  { type: 'workpoint', at: t0 + 6 * 60_000, p: [250] },
+] }
+rs = rotaStatus(wp1, S)
+check(rs.prognosis === 120, 'PRACA jedno pole: 60 + (310 − 250) = 120')
+check(rs.criticalName === null, 'PRACA jedno pole: WYCOFAJ dotyczy roty (bez imienia)')
+check(rs.pressure === 250, 'PRACA jedno pole: ciśnienie roty 250')
+check(rotaStatus({ ...wp1, readings: [{ type: 'entry', at: t0, p: [300, 300] }, { type: 'workpoint', at: t0, p: [250] }] }, S).prognosis === 110,
+  'PRACA jedno pole, równe WEJŚCIA 300/300 → 110 (jak wykres WSZP)')
+
 console.log(`Wynik: ${ok} poprawnych, ${fail} błędów`)
 process.exit(fail ? 1 : 0)

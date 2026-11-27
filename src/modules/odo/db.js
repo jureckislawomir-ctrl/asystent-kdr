@@ -139,9 +139,16 @@ export const addReading = (rotaId, type, pressures, at) =>
       await db.rotas.put(rota)
       if (type === 'workpoint') {
         const entry = rota.readings.find((r) => r.type === 'entry')
-        const progs = pressures.map((p, i) => prognosis(entry?.p[i], p, action.settings.reserve))
-        await log(rota.actionId, rotaId, 'workpoint',
-          `${who(rota)} – PRACA: ${joinP(pressures)} bar. WYCOFAJ: ${joinP(progs)} bar.`, at)
+        if (pressures.length === 1) {
+          // jedno pole: najniższe w rocie → WYCOFAJ roty = R + (najwyższe WEJŚCIE − najniższe PRACA)
+          const progs = rota.members.map((_, i) => prognosis(entry?.p[i], pressures[0], action.settings.reserve)).filter(Number.isFinite)
+          await log(rota.actionId, rotaId, 'workpoint',
+            `${who(rota)} – PRACA: ${pressures[0]} bar (najniższe w rocie). WYCOFAJ roty: ${progs.length ? Math.max(...progs) : '—'} bar.`, at)
+        } else {
+          const progs = pressures.map((p, i) => prognosis(entry?.p[i], p, action.settings.reserve))
+          await log(rota.actionId, rotaId, 'workpoint',
+            `${who(rota)} – PRACA: ${joinP(pressures)} bar. WYCOFAJ: ${joinP(progs)} bar.`, at)
+        }
       } else {
         await log(rota.actionId, rotaId, 'check', `${who(rota)} – kontrola: ${joinP(pressures)} bar${pressures.length === 1 ? ' (najniższe w rocie)' : ''}.`, at)
       }

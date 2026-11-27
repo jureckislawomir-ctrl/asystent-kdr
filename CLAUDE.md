@@ -32,11 +32,14 @@ Poprawki w zatwierdzonych krokach są dozwolone, jeśli wymaga ich bieżący kro
   - **Wzory (zweryfikowane z wykresem prognozowania WSZP, wszystkie komórki):**
     - stwierdzony punkt pracy: `Pwyc = R + (Pwej − Ppp)` (np. 300/250 → 110);
     - brak punktu pracy: `Pwyc = (Pwej − R) / 2 + R` (np. 300 → 180); wykres zaokrągla w dół do 10 bar (±5).
-    - Prognoza liczona **osobno dla każdego ratownika**; wycofanie wyznacza ratownik najbliżej swojej prognozy.
+    - Bez PRACY prognoza liczona dla każdego ratownika z jego WEJŚCIA; WYCOFAJ roty = najwyższa (imię ratownika).
+    - **PRACA – jedno pole, najniższe ciśnienie w rocie (decyzja użytkownika 27.11, 0.2.10):** nie wiadomo, kto je ma, więc WYCOFAJ roty = **R + (najwyższe WEJŚCIE − najniższe PRACA)** – górna granica zużycia, strona bezpieczna (np. 310/300, PRACA 250 → 120; przy 300/300 → 110 jak wykres). WYCOFAJ dotyczy roty – bez imienia. Starsze wpisy PRACY po jednym na ratownika liczone jak dawniej.
   - **Rota:** kryptonim + 2 ratowników (imię/pseudonim); wejście = wspólna godzina (automatyczna, edytowalna) + ciśnienie każdego; lista **SPOŁEM** do odhaczenia przed wejściem (Sygnalizatory, Poziom powietrza, Oświetlenie, Łączność, Ekwipunek, Meldunek o wejściu).
   - **Wpis ciśnień (0.2.9):** klawiatura 4×4 z przyciskami −10/+10; przy WEJŚCIU (rota, RA) pola wstępnie **300 bar** (ustawienie „Ciśnienie bazowe przy WEJŚCIU”, przycisk „300” na klawiaturze) – pierwsza cyfra zastępuje wartość bazową; przy pustym polu ±10 liczy od poprzedniego odczytu (kontrola: od najniższego w rocie; PRACA: od WEJŚCIA).
   - **Karta roty (0.2.9):** nazwa + ratownicy, „Kontrola za”, NAJNIŻSZE vs WYCOFAJ (imię ratownika), WEJŚCIE i czas w strefie, przyciski KONTROLA / PRACA / Wyjście / Wycofanie. Szacunek czasu do WYCOFAJ usunięty z karty (uproszczenie).
-  - **Punkt pracy:** meldunek roty → godzina + ciśnienia → przeliczenie prognozy (przed meldunkiem prognoza „brak punktu pracy”).
+  - **Wycofanie (ręczne, 0.2.10):** okno z polem „Wprowadź NAJNIŻSZE ciśnienie w rocie” – zapisywane jako kontrola + decyzja KDR o wycofaniu; pole **nieobowiązkowe** (wycofanie nie może czekać na wpis).
+  - Etykieta pola przy kontroli, PRACY i Wycofaniu: **„Wprowadź NAJNIŻSZE ciśnienie w rocie”** (decyzja użytkownika). WEJŚCIE i wyjście – nadal osobno dla każdego ratownika.
+  - **Punkt pracy:** meldunek roty → godzina + najniższe ciśnienie → przeliczenie prognozy (przed meldunkiem prognoza „brak punktu pracy”).
   - **Kontrole (decyzja użytkownika 27.11, 0.2.8):** **jedno pole – najniższe ciśnienie w rocie** (zasada „dwóch wchodzi, dwóch wychodzi”); porównywane z **WYCOFAJ roty = najwyższa z prognoz ratowników** (z imieniem ratownika). WEJŚCIE, PRACA i wyjście nadal osobno dla każdego ratownika. Nieograniczona liczba kontroli; godzina zapisuje się sama; minutnik do następnej kontroli z alarmem (dźwięk z narastającą głośnością jak na tablicy, wibracja, alarm wizualny – nie tylko kolor), alarm przebija blokadę dotyku i wymaga potwierdzenia; wyróżnienie ratownika zbliżającego się do prognozy.
   - **Decyzja KDR o pracy poniżej prognozy** (np. po wentylacji) zapisywana z godziną. Komunikat: nie dopuścić do gwizdka.
   - **Wyjście:** ciśnienia + godzina; rota zostaje w historii akcji. Przypomnienie o odpoczynku i nawodnieniu.
@@ -82,4 +85,4 @@ Tablet pobiera aplikację raz przez Wi-Fi, później działa bez sieci. Capacito
 
 ## 5. Status
 - KROK 1: **zatwierdzony** 26.11.2026 (wersja 0.1.6, Galaxy Tab Active5 Pro, Android 16).
-- KROK 2: oddany do testów (wersja 0.2.9, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (112/112, w tym 105 komórek wykresu WSZP), tools/check_odo.py (32/32), tools/check_robust.py (18/18), tools/check_fit.py (0 problemów), tools/check_battery.py (5/5), tools/check_touch.py (skrypty .py poza repozytorium, w /home/claude/tools).
+- KROK 2: oddany do testów (wersja 0.2.10, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (116/116, w tym 105 komórek wykresu WSZP), tools/check_odo.py (37/37), tools/check_robust.py (18/18), tools/check_fit.py (0 problemów), tools/check_battery.py (5/5), tools/check_touch.py (skrypty .py poza repozytorium, w /home/claude/tools).

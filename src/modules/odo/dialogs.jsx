@@ -262,15 +262,33 @@ export function AssignRADialog() {
 }
 
 // ---------- Odczyty: kontrola / punkt pracy / wyjście / wejście RA ----------
+const LOWEST_LABEL = 'Wprowadź NAJNIŻSZE ciśnienie w rocie'
+
+/** Podpowiedź pod polem „najniższe w rocie”: porównanie z WYCOFAJ roty i poprzednim odczytem. */
+function checkHint(p, rs, settings) {
+  const prev = rs.pressure
+  const prog = rs.prognosis
+  let s = `WYCOFAJ roty ${prog ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''} · poprzednio ${prev ?? '—'} bar`
+  if (Number.isFinite(p) && Number.isFinite(prev) && p > prev + 5) s += ' · ⚠ wyżej niż poprzednio – sprawdź'
+  else if (Number.isFinite(p) && Number.isFinite(prog)) {
+    const d = p - prog
+    if (d <= 0) s += ' · ⚠ WYCOFAJ – OSIĄGNIĘTE'
+    else if (d <= settings.marginBar) s += ` · ⚠ blisko WYCOFAJ (+${d})`
+  }
+  return s
+}
+
 const TITLES = { check: 'Kontrola ciśnienia', workpoint: 'PRACA', exit: 'Wyjście ze strefy', enterRA: 'WEJŚCIE roty asekuracyjnej' }
 
 export function PressureDialog({ type, rotaId }) {
   const { rotas, settings, close, open, dialog } = useOdo()
   const rota = rotas.find((r) => r.id === rotaId)
   const d = dialog?.draft ?? {}
-  // kontrola: jedno pole – najniższe ciśnienie w rocie (dwóch wchodzi, dwóch wychodzi); pozostałe odczyty: po jednym na ratownika
+  // kontrola i PRACA: jedno pole – najniższe ciśnienie w rocie (dwóch wchodzi, dwóch wychodzi);
+  // WEJŚCIE RA i wyjście: po jednym na ratownika
+  const single = type === 'check' || type === 'workpoint'
   const [vals, setVals] = useState(() =>
-    d.vals ?? (type === 'check' ? [''] : rota ? rota.members.map(() => (type === 'enterRA' ? String(settings.basePressure) : '')) : []),
+    d.vals ?? (single ? [''] : rota ? rota.members.map(() => (type === 'enterRA' ? String(settings.basePressure) : '')) : []),
   )
   const [active, setActive] = useState(() => firstEmpty(d.vals))
   const [off, setOff] = useState(d.off ?? 0)
@@ -285,30 +303,22 @@ export function PressureDialog({ type, rotaId }) {
   const wp = rota.readings.find((r) => r.type === 'workpoint')
 
   const rs = rotaStatus(rota, settings)
-  const fieldNames = type === 'check' ? ['Najniższe ciśnienie w rocie'] : rota.members
+  const fieldNames = single ? [LOWEST_LABEL] : rota.members
+  const entryMax = entry ? Math.max(...entry.p.filter(Number.isFinite)) : null
+  const entryMin = entry ? Math.min(...entry.p.filter(Number.isFinite)) : null
 
   const extra = (i) => {
     const p = nums[i]
     if (type === 'enterRA') return entryExtra(vals[i], settings)
     if (type === 'workpoint') {
-      const prog = Number.isFinite(p) ? prognosis(entry?.p[i], p, settings.reserve) : null
-      return `WEJŚCIE ${entry?.p[i] ?? '—'} bar${prog != null ? ` → WYCOFAJ: ${prog} bar` : ''}`
+      const prog = Number.isFinite(p) ? prognosis(entryMax, p, settings.reserve) : null
+      return `najwyższe WEJŚCIE ${entryMax ?? '—'} bar${prog != null ? ` → WYCOFAJ roty: ${prog} bar` : ''}`
     }
     if (type === 'exit') {
       const prev = readingMin(rota.readings[rota.readings.length - 1])
       return `ciśnienie przy wyjściu · ostatnia kontrola (najniższe) ${prev ?? '—'} bar`
     }
-    // kontrola – porównanie z WYCOFAJ roty (najwyższa prognoza w rocie)
-    const prev = rs.pressure
-    const prog = rs.prognosis
-    let s = `WYCOFAJ roty ${prog ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''} · poprzednio ${prev ?? '—'} bar`
-    if (Number.isFinite(p) && Number.isFinite(prev) && p > prev + 5) s += ' · ⚠ wyżej niż poprzednio – sprawdź'
-    else if (Number.isFinite(p) && Number.isFinite(prog)) {
-      const d = p - prog
-      if (d <= 0) s += ' · ⚠ WYCOFAJ – OSIĄGNIĘTE'
-      else if (d <= settings.marginBar) s += ` · ⚠ blisko WYCOFAJ (+${d})`
-    }
-    return s
+    return checkHint(p, rs, settings)
   }
 
   // ±10 przy pustym polu liczy od poprzedniego odczytu (kontrola: najniższe w rocie)
@@ -317,7 +327,7 @@ export function PressureDialog({ type, rotaId }) {
     type === 'check'
       ? [rs.pressure]
       : type === 'workpoint'
-        ? rota.members.map((_, i) => entry?.p[i])
+        ? [entryMin]
         : rota.members.map((_, i) => (last?.p.length === rota.members.length ? last.p[i] : readingMin(last)))
 
   const save = run(async () => {
@@ -377,7 +387,7 @@ export function PressureDialog({ type, rotaId }) {
       <div className="flex flex-col gap-4">
         {type === 'workpoint' && (
           <p className="text-muted">
-            Ciśnienie po dojściu do miejsca pracy. WYCOFAJ = {settings.reserve} + (WEJŚCIE − PRACA). W razie wątpliwości lepiej zgłosić PRACĘ wcześniej.
+            WYCOFAJ roty = {settings.reserve} + (najwyższe WEJŚCIE − najniższe PRACA).
           </p>
         )}
         <PressureFields names={fieldNames} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} bases={bases} />
@@ -392,21 +402,32 @@ export function PressureDialog({ type, rotaId }) {
 const REASONS = ['Wentylacja / poprawa widoczności', 'Krótsza droga wyjścia', 'Rota blisko wyjścia', 'Inny powód – omówiony z rotą']
 
 export function DecisionDialog({ rotaId, manual = false }) {
-  const { rotas, settings, close } = useOdo()
+  const { rotas, settings, close, dialog } = useOdo()
   const rota = rotas.find((r) => r.id === rotaId)
   const [step, setStep] = useState('choose')
+  // ręczne wycofanie: najniższe ciśnienie w rocie (nieobowiązkowe – wycofanie nie czeka na wpis)
+  const [vals, setVals] = useState(() => dialog?.draft?.vals ?? [''])
+  const [active, setActive] = useState(0)
+  useDraftSync({ vals })
   if (!rota) return null
   const rs = rotaStatus(rota, settings)
   const reachedNow = rs.state === 'reached'
   const desc = `najniższe ${rs.pressure ?? '—'} bar / WYCOFAJ roty ${rs.prognosis ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''}`
 
+  const typed = toNums(vals)[0]
   const withdraw = async () => {
-    await recordDecision(rota.id, 'withdraw', manual ? '' : `(${desc})`)
+    unlockAudio()
+    if (manual && Number.isFinite(typed)) {
+      await addReading(rota.id, 'check', [typed], Date.now())
+      await recordDecision(rota.id, 'withdraw', `(najniższe ${typed} bar / WYCOFAJ roty ${rs.prognosis ?? '—'})`)
+    } else {
+      await recordDecision(rota.id, 'withdraw', manual ? '' : `(${desc})`)
+    }
     close()
   }
 
   return (
-    <Dialog title={manual ? `Wycofanie roty – ${rota.label}` : `Decyzja KDR – ${rota.label}`} onClose={manual ? close : undefined}>
+    <Dialog wide={manual} title={manual ? `Wycofanie roty – ${rota.label}` : `Decyzja KDR – ${rota.label}`} onClose={manual ? close : undefined}>
       <div className="flex flex-col gap-4">
         <div
           className={`grid grid-cols-2 gap-3 rounded-lg border-2 border-l-8 px-4 py-3 ${
@@ -426,6 +447,18 @@ export function DecisionDialog({ rotaId, manual = false }) {
           </span>
         </div>
 
+        {manual && (
+          <PressureFields
+            names={[LOWEST_LABEL]}
+            values={vals}
+            setValues={setVals}
+            active={active}
+            setActive={setActive}
+            extra={() => checkHint(typed, rs, settings)}
+            bases={[rs.pressure]}
+          />
+        )}
+
         {!manual && (
           <p className="flex items-center gap-2 rounded-lg border-2 border-warn px-3 py-2 text-lg font-black text-warn">
             <TriangleAlert size={26} /> Nie dopuść do gwizdka. Monitorowanie z zewnątrz nie zwalnia roty z samokontroli.
@@ -434,7 +467,7 @@ export function DecisionDialog({ rotaId, manual = false }) {
 
         {step === 'choose' && (
           <div className="grid gap-3 sm:grid-cols-2">
-            <Btn variant="primary" className="min-h-20 text-2xl" onClick={withdraw}>
+            <Btn variant="primary" className={`min-h-20 text-2xl ${manual ? 'sm:col-span-2' : ''}`} onClick={withdraw}>
               WYCOFANIE ROTY
             </Btn>
             {!manual && reachedNow && (

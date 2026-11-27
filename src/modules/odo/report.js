@@ -1,4 +1,4 @@
-import { prognosis, fmtHM, fmtDuration, readingMin } from './logic'
+import { prognosis, fmtHM, fmtDuration, readingMin, workPointOf, isRotaWorkPoint, rotaStatus } from './logic'
 
 const fmtDate = (ms) => new Date(ms).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -20,12 +20,14 @@ export function buildReportText(action, rotas, events) {
       L.push('')
       continue
     }
+    const rotaWp = isRotaWorkPoint(wp)
     r.members.forEach((m, i) => {
-      const prog = prognosis(entry.p[i], wp?.p[i], s.reserve)
+      const prog = prognosis(entry.p[i], workPointOf(wp, i), s.reserve)
       L.push(
-        `  ${m || `Ratownik ${i + 1}`}: WEJŚCIE ${entry.p[i]} bar, PRACA ${wp ? wp.p[i] : '—'}, WYCOFAJ ${prog}, wyjście ${exit ? exit.p[i] : '—'} bar`,
+        `  ${m || `Ratownik ${i + 1}`}: WEJŚCIE ${entry.p[i]} bar${rotaWp ? '' : `, PRACA ${wp ? wp.p[i] : '—'}, WYCOFAJ ${prog}`}, wyjście ${exit ? exit.p[i] : '—'} bar`,
       )
     })
+    if (rotaWp) L.push(`  PRACA ${wp.p[0]} bar (najniższe w rocie), WYCOFAJ roty ${rotaStatus(r, s).prognosis} bar`)
     L.push(`  WEJŚCIE ${fmtHM(entry.at)}${wp ? `, PRACA ${fmtHM(wp.at)}` : ''}${exit ? `, wyjście ${fmtHM(exit.at)} (w strefie ${fmtDuration(exit.at - entry.at)})` : ', w strefie'}`)
     const checks = r.readings.filter((x) => x.type === 'check')
     if (checks.length) L.push(`  Kontrole (najniższe w rocie): ${checks.map((c) => `${fmtHM(c.at)} ${readingMin(c)}`).join('; ')}`)
