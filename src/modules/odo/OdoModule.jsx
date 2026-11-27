@@ -7,6 +7,7 @@ import { RotaCard, RAPlaceholder, OutRow } from './RotaCard'
 import { db, deleteAction } from './db'
 import { ACTIVE_STATUSES, fmtHM, prognosis } from './logic'
 import { buildReportText } from './report'
+import { notificationStatus, requestNotifications } from './dialogs'
 
 export default function OdoModule() {
   const [view, setView] = useState({ name: 'board' }) // board | journal | history | report
@@ -63,6 +64,8 @@ function Board({ setView }) {
         )}
       </div>
 
+      <NotificationHint />
+
       {!action && (
         <div className="rounded-xl border-2 border-line bg-surface p-5">
           <p className="text-xl font-black">Brak aktywnej kontroli ODO.</p>
@@ -102,6 +105,21 @@ function Board({ setView }) {
           </ul>
         </section>
       )}
+    </div>
+  )
+}
+
+function NotificationHint() {
+  const [st, setSt] = useState(notificationStatus)
+  if (st !== 'default') return null
+  return (
+    <div className="no-print flex flex-wrap items-center gap-3 rounded-lg border-2 border-warn px-3 py-2">
+      <span className="mr-auto font-bold text-warn">
+        Powiadomienia wyłączone – gdy aplikacja jest w tle, alarm kontroli może nie dotrzeć.
+      </span>
+      <Btn variant="warn" onClick={async () => setSt(await requestNotifications())}>
+        Włącz powiadomienia
+      </Btn>
     </div>
   )
 }

@@ -13,12 +13,16 @@ const toNums = (vals) => vals.map((v) => (v === '' || v == null ? NaN : Number(v
 const allValid = (nums) => nums.every((n) => Number.isFinite(n) && n >= 0 && n <= 350)
 const atFromOffset = (off) => (off === 0 ? Date.now() : Date.now() + off * 60_000)
 
-function askNotificationPermission() {
+// Zgoda na powiadomienia: tylko świadomie, osobnym przyciskiem – nigdy w trakcie wpisywania roty
+// (okno zgody Androida blokuje ekran do czasu odpowiedzi).
+export const notificationStatus = () => ('Notification' in window ? Notification.permission : 'unsupported')
+export async function requestNotifications() {
   try {
-    if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission()
+    if ('Notification' in window && Notification.permission === 'default') await Notification.requestPermission()
   } catch {
     /* ignoruj */
   }
+  return notificationStatus()
 }
 
 // ---------- SPOŁEM ----------
@@ -106,7 +110,6 @@ export function NewRotaDialog() {
 
   const save = async () => {
     unlockAudio()
-    askNotificationPermission()
     await createRota({ label: label.trim(), members: members.map((m) => m.trim()), spolem, pressures: nums, at: atFromOffset(off) })
     close()
   }
@@ -374,6 +377,7 @@ export function SettingsDialog() {
         <Stepper label="Rezerwa obliczeniowa" value={s.reserve} set={(v) => setS({ ...s, reserve: v })} step={5} min={40} max={80} unit="bar" />
         <Stepper label="Kontrola ciśnienia co" value={s.intervalMin} set={(v) => setS({ ...s, intervalMin: v })} step={1} min={1} max={15} unit="min" />
         <Stepper label="Ostrzeżenie nad WYCOFAJ" value={s.marginBar} set={(v) => setS({ ...s, marginBar: v })} step={5} min={0} max={30} unit="bar" />
+        <NotificationSetting />
         <div className="flex flex-wrap items-center gap-3 border-t-2 border-line pt-3">
           <Btn onClick={testAlarm}>Test dźwięku i wibracji</Btn>
           <span className="text-sm text-muted">Dźwięk idzie głośnością multimediów Androida – sprawdź, czy nie jest ściszona.</span>
@@ -384,6 +388,22 @@ export function SettingsDialog() {
         </p>
       </div>
     </Dialog>
+  )
+}
+
+function NotificationSetting() {
+  const [st, setSt] = useState(notificationStatus)
+  const text = {
+    granted: 'Powiadomienia włączone – alarm kontroli pojawi się także, gdy aplikacja jest w tle.',
+    default: 'Powiadomienia wyłączone – gdy aplikacja jest w tle, alarm kontroli może nie dotrzeć.',
+    denied: 'Powiadomienia zablokowane – włącz je w ustawieniach aplikacji w Androidzie (Powiadomienia).',
+    unsupported: 'Ta przeglądarka nie obsługuje powiadomień.',
+  }[st]
+  return (
+    <div className="flex flex-wrap items-center gap-3 border-t-2 border-line pt-3">
+      {st === 'default' && <Btn onClick={async () => setSt(await requestNotifications())}>Włącz powiadomienia</Btn>}
+      <span className={`text-sm font-bold ${st === 'granted' ? 'text-ok' : 'text-warn'}`}>{text}</span>
+    </div>
   )
 }
 

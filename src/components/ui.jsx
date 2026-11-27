@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { Delete } from 'lucide-react'
 
 // Wspólne elementy „bojowe”: duże cele dotykowe, stan opisany tekstem, nie tylko kolorem.
@@ -69,13 +70,27 @@ export function NumPad({ onDigit, onBackspace, onNext, nextLabel = 'Dalej' }) {
  * extra(i): dodatkowa informacja pod polem (np. prognoza, ostrzeżenie).
  */
 export function PressureFields({ names, values, setValues, active, setActive, extra }) {
-  const setVal = (i, v) => setValues(values.map((x, k) => (k === i ? v : x)))
+  // aktualny stan w refach – kolejne stuknięcia nie czekają na odświeżenie ekranu
+  const valsRef = useRef(values)
+  const activeRef = useRef(active)
+  useEffect(() => {
+    valsRef.current = values
+    activeRef.current = active
+  }, [values, active])
+  const commit = (next, nextActive = activeRef.current) => {
+    valsRef.current = next
+    activeRef.current = nextActive
+    setValues(next)
+    setActive(nextActive)
+  }
+  const setVal = (i, v) => commit(names.map((_, k) => (k === i ? v : valsRef.current[k] ?? '')))
   const digit = (d) => {
-    const cur = values[active] ?? ''
+    const a = activeRef.current
+    const cur = valsRef.current[a] ?? ''
     if (cur.length >= 3) return
     const v = (cur + d).replace(/^0+(?=\d)/, '')
-    setVal(active, v)
-    if (v.length === 3 && active < names.length - 1) setActive(active + 1)
+    const next = names.map((_, k) => (k === a ? v : valsRef.current[k] ?? ''))
+    commit(next, v.length === 3 && a < names.length - 1 ? a + 1 : a)
   }
   return (
     <div className="grid gap-4 md:grid-cols-[1fr_minmax(260px,340px)]">
@@ -84,7 +99,7 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
           <button
             key={i}
             type="button"
-            onClick={() => setActive(i)}
+            onClick={() => ((activeRef.current = i), setActive(i))}
             className={`flex min-h-16 items-center justify-between gap-3 rounded-lg border-4 px-4 text-left ${
               i === active ? 'border-accent bg-surface' : 'border-line bg-bg'
             }`}
@@ -102,8 +117,8 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
       </div>
       <NumPad
         onDigit={digit}
-        onBackspace={() => setVal(active, (values[active] ?? '').slice(0, -1))}
-        onNext={() => setActive((active + 1) % names.length)}
+        onBackspace={() => setVal(activeRef.current, (valsRef.current[activeRef.current] ?? '').slice(0, -1))}
+        onNext={() => commit(valsRef.current, (activeRef.current + 1) % names.length)}
       />
     </div>
   )

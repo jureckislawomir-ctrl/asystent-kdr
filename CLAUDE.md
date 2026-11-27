@@ -41,6 +41,7 @@ Poprawki w zatwierdzonych krokach są dozwolone, jeśli wymaga ich bieżący kro
   - **Nazewnictwo (decyzja użytkownika):** w całym module ODO: WEJŚCIE, PRACA (punkt pracy), WYCOFAJ (prognozowane ciśnienie wycofania). Przycisk ręcznego wycofania: „Wycofanie”.
   - Dźwięk alarmu: Web Audio odblokowywane gestem (pointerup/touchend/click – nie pointerdown); gra głośnością multimediów Androida; w ustawieniach „Test dźwięku i wibracji”.
   - **Ograniczenie PWA potwierdzone testem (26.11):** po „Zamknij wszystko” na tablecie JS nie działa → brak alarmu do ponownego otwarcia; po otwarciu dźwięk zablokowany do pierwszego dotknięcia (pasek „DŹWIĘK ALARMÓW WYŁĄCZONY”). Pełne rozwiązanie: Capacitor (natywne alarmy) – decyzja użytkownika.
+  - **Zgoda na powiadomienia tylko świadomie** (przycisk na tablicy ODO / w ustawieniach) – nigdy w trakcie zapisu roty: okno zgody Androida blokowało ekran ~30 s (zgłoszenie 27.11).
   - Ostatnia zakładka zapamiętywana – po odświeżeniu/ponownym uruchomieniu powrót do ODO.
   - Opcjonalnie: szacunek czasu do prognozy z tempa spadku ciśnienia między kontrolami – wyraźnie oznaczony jako szacunek.
   - Czasy liczone ze **znaczników czasu**, dane w IndexedDB (Dexie) – odświeżenie/restart nie kasuje akcji.
@@ -74,4 +75,4 @@ Tablet pobiera aplikację raz przez Wi-Fi, później działa bez sieci. Capacito
 
 ## 5. Status
 - KROK 1: **zatwierdzony** 26.11.2026 (wersja 0.1.6, Galaxy Tab Active5 Pro, Android 16).
-- KROK 2: oddany do testów (wersja 0.2.4, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (105/105 z wykresem WSZP).
+- KROK 2: oddany do testów (wersja 0.2.5, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (105/105 z wykresem WSZP).
