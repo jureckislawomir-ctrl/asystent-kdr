@@ -2,7 +2,7 @@ import { TriangleAlert, Timer, Shield } from 'lucide-react'
 import { Btn } from '../../components/ui'
 import { useOdo } from './OdoContext'
 import { useClock } from '../../hooks/useClock'
-import { rotaMemberStatus, nextCheckDue, fmtDuration, fmtHM, estimateMinutesToPrognosis, worstState } from './logic'
+import { rotaStatus, nextCheckDue, fmtDuration, fmtHM, estimateMinutesToPrognosis } from './logic'
 import { removeStandbyRA } from './db'
 
 const STATUS = {
@@ -24,18 +24,14 @@ export function RotaCard({ rota }) {
   const now = useClock().getTime()
   const entry = rota.readings.find((r) => r.type === 'entry')
   const hasWp = rota.readings.some((r) => r.type === 'workpoint')
-  const members = rotaMemberStatus(rota, settings)
-  const worst = worstState(members.map((m) => m.state))
+  const rs = rotaStatus(rota, settings)
+  const worst = rs.state
   const due = nextCheckDue(rota, settings.intervalMin)
   const left = due ? due - now : null
   const overdue = left !== null && left <= 0
   const st = STATUS[rota.status]
-
-  // szacunek czasu do prognozy – dla najbardziej zagrożonego ratownika
-  const est = members
-    .map((m, i) => estimateMinutesToPrognosis(rota, i, m.prognosis))
-    .filter((x) => x !== null)
-    .sort((a, b) => a - b)[0]
+  // szacunek czasu do WYCOFAJ roty z tempa spadku najniższego ciśnienia
+  const est = estimateMinutesToPrognosis(rota, rs.prognosis) ?? undefined
 
   return (
     <article
@@ -71,36 +67,53 @@ export function RotaCard({ rota }) {
       )}
 
       {entry ? (
-        <table className="w-full border-separate border-spacing-y-1 text-left">
-          <thead>
-            <tr className="align-bottom text-xs font-bold uppercase text-muted">
-              <th className="px-2">Ratownik</th>
-              <th className="px-1 text-right">WEJŚCIE</th>
-              <th className="px-1 text-right">PRACA</th>
-              <th className="px-1 text-right">WYCOFAJ</th>
-              <th className="px-2 text-right leading-tight">
-                OSTATNIA
+        <>
+          {/* Rota: najniższe ciśnienie z ostatniej kontroli vs WYCOFAJ roty (dwóch wchodzi, dwóch wychodzi) */}
+          <div className={`grid grid-cols-2 gap-2 rounded-lg border-2 border-l-8 px-3 py-2 ${STATE_ROW[worst]}`}>
+            <div className="flex flex-col">
+              <span className="text-xs font-bold uppercase leading-tight text-muted">
+                {{ entry: 'Przy WEJŚCIU', workpoint: 'PRACA', check: 'Ostatnia kontrola' }[rs.lastType] ?? 'Ostatnia kontrola'} {rs.lastAt ? fmtHM(rs.lastAt) : ''}
                 <br />
-                KONTROLA
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((m, i) => (
-              <tr key={i} className={`tabular ${STATE_ROW[m.state]}`}>
-                <td className={`rounded-l-md border-y-2 border-l-8 px-2 py-1 text-lg font-bold ${STATE_ROW[m.state]}`}>
-                  {m.name || `Ratownik ${i + 1}`}
-                  {m.state === 'reached' && <span className="block text-xs font-black">WYCOFAJ – OSIĄGNIĘTE</span>}
-                  {m.state === 'near' && <span className="block text-xs font-black">BLISKO WYCOFAJ (+{m.margin})</span>}
-                </td>
-                <td className={`border-y-2 px-1 text-right text-lg ${STATE_ROW[m.state]}`}>{m.entry ?? '—'}</td>
-                <td className={`border-y-2 px-1 text-right text-lg ${STATE_ROW[m.state]}`}>{m.workPoint ?? '—'}</td>
-                <td className={`border-y-2 px-1 text-right text-2xl font-black ${STATE_ROW[m.state]}`}>{m.prognosis ?? '—'}</td>
-                <td className={`rounded-r-md border-y-2 border-r-2 px-2 text-right text-2xl font-black ${STATE_ROW[m.state]}`}>{m.pressure ?? '—'}</td>
+                (najniższe w rocie)
+              </span>
+              <span className="tabular text-4xl font-black leading-tight">{rs.pressure ?? '—'}</span>
+            </div>
+            <div className="flex flex-col text-right">
+              <span className="text-xs font-bold uppercase leading-tight text-muted">
+                WYCOFAJ roty
+                <br />
+                {rs.criticalName ? `(${rs.criticalName})` : ''}
+              </span>
+              <span className="tabular text-4xl font-black leading-tight">{rs.prognosis ?? '—'}</span>
+            </div>
+            {worst === 'reached' && <span className="col-span-2 text-base font-black">WYCOFAJ – OSIĄGNIĘTE</span>}
+            {worst === 'near' && <span className="col-span-2 text-base font-black">BLISKO WYCOFAJ (+{rs.margin} bar)</span>}
+          </div>
+          <table className="w-full border-separate border-spacing-y-1 text-left">
+            <thead>
+              <tr className="align-bottom text-xs font-bold uppercase text-muted">
+                <th className="px-2">Ratownik</th>
+                <th className="px-1 text-right">WEJŚCIE</th>
+                <th className="px-1 text-right">PRACA</th>
+                <th className="px-2 text-right">WYCOFAJ</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {rs.members.map((m, i) => (
+                <tr key={i} className="tabular">
+                  <td className={`rounded-l-md border-y-2 border-l-8 px-2 py-1 text-lg font-bold ${m.critical ? 'border-fg' : 'border-line'}`}>
+                    {m.name || `Ratownik ${i + 1}`}
+                  </td>
+                  <td className={`border-y-2 px-1 text-right text-lg ${m.critical ? 'border-fg' : 'border-line'}`}>{m.entry ?? '—'}</td>
+                  <td className={`border-y-2 px-1 text-right text-lg ${m.critical ? 'border-fg' : 'border-line'}`}>{m.workPoint ?? '—'}</td>
+                  <td className={`rounded-r-md border-y-2 border-r-2 px-2 text-right text-2xl font-black ${m.critical ? 'border-fg' : 'border-line'}`}>
+                    {m.prognosis ?? '—'}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
       ) : (
         <p className="text-lg font-bold">{rota.members.filter(Boolean).join(', ') || 'Ratownicy nieokreśleni'}</p>
       )}

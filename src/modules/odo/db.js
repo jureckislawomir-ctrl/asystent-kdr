@@ -143,7 +143,7 @@ export const addReading = (rotaId, type, pressures, at) =>
         await log(rota.actionId, rotaId, 'workpoint',
           `${who(rota)} – PRACA: ${joinP(pressures)} bar. WYCOFAJ: ${joinP(progs)} bar.`, at)
       } else {
-        await log(rota.actionId, rotaId, 'check', `${who(rota)} – kontrola: ${joinP(pressures)} bar.`, at)
+        await log(rota.actionId, rotaId, 'check', `${who(rota)} – kontrola: ${joinP(pressures)} bar${pressures.length === 1 ? ' (najniższe w rocie)' : ''}.`, at)
       }
     }),
   )

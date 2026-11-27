@@ -5,7 +5,7 @@ import { Btn, Dialog } from '../../components/ui'
 import { useOdo } from './OdoContext'
 import { RotaCard, RAPlaceholder, OutRow } from './RotaCard'
 import { db, deleteAction } from './db'
-import { ACTIVE_STATUSES, fmtHM, prognosis } from './logic'
+import { ACTIVE_STATUSES, fmtHM, prognosis, readingMin } from './logic'
 import { buildReportText } from './report'
 import { notificationStatus, requestNotifications } from './dialogs'
 
@@ -275,7 +275,7 @@ function Report({ actionId, onBack }) {
                         <th className="border-2 border-line px-2">PRACA {wp ? fmtHM(wp.at) : ''}</th>
                         <th className="border-2 border-line px-2">WYCOFAJ</th>
                         {checks.map((c, k) => (
-                          <th key={k} className="border-2 border-line px-2">Kontrola {fmtHM(c.at)}</th>
+                          <th key={k} className="border-2 border-line px-2">Kontrola {fmtHM(c.at)} (najniższe)</th>
                         ))}
                         <th className="border-2 border-line px-2">Wyjście {exit ? fmtHM(exit.at) : ''}</th>
                       </tr>
@@ -287,9 +287,12 @@ function Report({ actionId, onBack }) {
                           <td className="border-2 border-line px-2">{entry.p[i]}</td>
                           <td className="border-2 border-line px-2">{wp ? wp.p[i] : '—'}</td>
                           <td className="border-2 border-line px-2 font-black">{prognosis(entry.p[i], wp?.p[i], s.reserve)}</td>
-                          {checks.map((c, k) => (
-                            <td key={k} className="border-2 border-line px-2">{c.p[i]}</td>
-                          ))}
+                          {i === 0 &&
+                            checks.map((c, k) => (
+                              <td key={k} rowSpan={r.members.length} className="border-2 border-line px-2 text-center font-bold">
+                                {readingMin(c)}
+                              </td>
+                            ))}
                           <td className="border-2 border-line px-2">{exit ? exit.p[i] : '—'}</td>
                         </tr>
                       ))}

@@ -1,4 +1,4 @@
-import { prognosis, fmtHM, fmtDuration } from './logic'
+import { prognosis, fmtHM, fmtDuration, readingMin } from './logic'
 
 const fmtDate = (ms) => new Date(ms).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
@@ -28,7 +28,7 @@ export function buildReportText(action, rotas, events) {
     })
     L.push(`  WEJŚCIE ${fmtHM(entry.at)}${wp ? `, PRACA ${fmtHM(wp.at)}` : ''}${exit ? `, wyjście ${fmtHM(exit.at)} (w strefie ${fmtDuration(exit.at - entry.at)})` : ', w strefie'}`)
     const checks = r.readings.filter((x) => x.type === 'check')
-    if (checks.length) L.push(`  Kontrole: ${checks.map((c) => `${fmtHM(c.at)} ${c.p.join('/')}`).join('; ')}`)
+    if (checks.length) L.push(`  Kontrole (najniższe w rocie): ${checks.map((c) => `${fmtHM(c.at)} ${readingMin(c)}`).join('; ')}`)
     L.push('')
   }
   L.push('DZIENNIK')

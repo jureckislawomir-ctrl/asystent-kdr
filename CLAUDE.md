@@ -34,13 +34,13 @@ Poprawki w zatwierdzonych krokach są dozwolone, jeśli wymaga ich bieżący kro
     - Prognoza liczona **osobno dla każdego ratownika**; wycofanie wyznacza ratownik najbliżej swojej prognozy.
   - **Rota:** kryptonim + 2 ratowników (imię/pseudonim); wejście = wspólna godzina (automatyczna, edytowalna) + ciśnienie każdego; lista **SPOŁEM** do odhaczenia przed wejściem (Sygnalizatory, Poziom powietrza, Oświetlenie, Łączność, Ekwipunek, Meldunek o wejściu).
   - **Punkt pracy:** meldunek roty → godzina + ciśnienia → przeliczenie prognozy (przed meldunkiem prognoza „brak punktu pracy”).
-  - **Kontrole:** nieograniczona liczba; wpis ciśnień, godzina zapisuje się sama; minutnik do następnej kontroli z alarmem (dźwięk z narastającą głośnością jak na tablicy, wibracja, alarm wizualny – nie tylko kolor), alarm przebija blokadę dotyku i wymaga potwierdzenia; wyróżnienie ratownika zbliżającego się do prognozy.
+  - **Kontrole (decyzja użytkownika 27.11, 0.2.8):** **jedno pole – najniższe ciśnienie w rocie** (zasada „dwóch wchodzi, dwóch wychodzi”); porównywane z **WYCOFAJ roty = najwyższa z prognoz ratowników** (z imieniem ratownika). WEJŚCIE, PRACA i wyjście nadal osobno dla każdego ratownika. Nieograniczona liczba kontroli; godzina zapisuje się sama; minutnik do następnej kontroli z alarmem (dźwięk z narastającą głośnością jak na tablicy, wibracja, alarm wizualny – nie tylko kolor), alarm przebija blokadę dotyku i wymaga potwierdzenia; wyróżnienie ratownika zbliżającego się do prognozy.
   - **Decyzja KDR o pracy poniżej prognozy** (np. po wentylacji) zapisywana z godziną. Komunikat: nie dopuścić do gwizdka.
   - **Wyjście:** ciśnienia + godzina; rota zostaje w historii akcji. Przypomnienie o odpoczynku i nawodnieniu.
   - **RA:** osobne pole przypominające o wyznaczeniu (§ 38 rozporządzenia o BHS); po wejściu RA prowadzona jak rota.
   - **Nazewnictwo (decyzja użytkownika):** w całym module ODO: WEJŚCIE, PRACA (punkt pracy), WYCOFAJ (prognozowane ciśnienie wycofania). Przycisk ręcznego wycofania: „Wycofanie”.
   - Dźwięk alarmu: Web Audio odblokowywane gestem (pointerup/touchend/click – nie pointerdown); gra głośnością multimediów Androida; w ustawieniach „Test dźwięku i wibracji”.
-  - **Ograniczenie PWA potwierdzone testem (26.11):** po „Zamknij wszystko” na tablecie JS nie działa → brak alarmu do ponownego otwarcia; po otwarciu dźwięk zablokowany do pierwszego dotknięcia (pasek „DŹWIĘK ALARMÓW WYŁĄCZONY”). Pełne rozwiązanie: Capacitor (natywne alarmy) – decyzja użytkownika.
+  - **Ograniczenie PWA potwierdzone testem (26.11):** po „Zamknij wszystko” na tablecie JS nie działa → brak alarmu do ponownego otwarcia; po otwarciu dźwięk zablokowany do pierwszego dotknięcia (pasek „DŹWIĘK ALARMÓW WYŁĄCZONY”). Pełne rozwiązanie: Capacitor (natywne alarmy) – decyzja użytkownika 27.11: **nie teraz**, później.
   - **Zgoda na powiadomienia tylko świadomie** (przycisk na tablicy ODO / w ustawieniach) – nigdy w trakcie zapisu roty: okno zgody Androida blokowało ekran ~30 s (zgłoszenie 27.11).
   - **Diagnostyka na tablecie (0.2.6):** każdy błąd na czerwonym pasku z treścią; przyciski zapisu pokazują „Zapisywanie…”, ostrzeżenie po 3 s i komunikat błędu; test bazy w diagnostyce pulpitu („baza: X ms”).
   - **Zawieszona baza (27.11, rozwiązane restartem):** na tablecie „brak odpowiedzi bazy > 5 s” – drugie, zamrożone okno aplikacji trzymało transakcję IndexedDB. Od 0.2.7: ostrzeżenie o drugim oknie (BroadcastChannel), czerwony komunikat „BAZA DANYCH NIE ODPOWIADA” z instrukcją, test bazy przy starcie i po powrocie do aplikacji.
@@ -79,4 +79,4 @@ Tablet pobiera aplikację raz przez Wi-Fi, później działa bez sieci. Capacito
 
 ## 5. Status
 - KROK 1: **zatwierdzony** 26.11.2026 (wersja 0.1.6, Galaxy Tab Active5 Pro, Android 16).
-- KROK 2: oddany do testów (wersja 0.2.7, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (105/105 z wykresem WSZP), tools/check_odo.py (27/27), tools/check_robust.py (17/17), tools/check_touch.py.
+- KROK 2: oddany do testów (wersja 0.2.8, GitHub Pages), czeka na „ZATWIERDZAM KROK 2”. Testy automatyczne: tools/test_odo_logic.mjs (112/112, w tym 105 komórek wykresu WSZP), tools/check_odo.py (27/27), tools/check_robust.py (18/18), tools/check_touch.py.

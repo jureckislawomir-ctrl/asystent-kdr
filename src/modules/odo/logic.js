@@ -32,13 +32,10 @@ export function memberState(pressure, prog, marginBar) {
 const STATE_RANK = { unknown: 0, ok: 1, near: 2, reached: 3 }
 export const worstState = (states) => states.reduce((a, b) => (STATE_RANK[b] > STATE_RANK[a] ? b : a), 'unknown')
 
-/** Ostatni odczyt ciśnienia ratownika `i` (wejście, punkt pracy, kontrola lub wyjście). */
-export function lastPressure(rota, i) {
-  for (let k = rota.readings.length - 1; k >= 0; k--) {
-    const p = rota.readings[k].p[i]
-    if (Number.isFinite(p)) return p
-  }
-  return null
+/** Najniższe ciśnienie z odczytu. Kontrola ma jedno pole (najniższe w rocie), wejście/PRACA/wyjście – po jednym na ratownika. */
+export function readingMin(reading) {
+  const v = (reading?.p ?? []).filter(Number.isFinite)
+  return v.length ? Math.min(...v) : null
 }
 
 /** Prognozy wszystkich ratowników roty. */
@@ -48,22 +45,37 @@ export function rotaPrognoses(rota, reserve) {
   return rota.members.map((_, i) => prognosis(entry?.p[i], wp?.p[i], reserve))
 }
 
-/** Pełny stan ratowników roty (ciśnienie, prognoza, zapas nad prognozą, stan). */
-export function rotaMemberStatus(rota, settings) {
+/**
+ * Stan roty wg zasady „dwóch wchodzi, dwóch wychodzi”:
+ * - WYCOFAJ roty = NAJWYŻSZA prognoza z ratowników (ten, kto musi wycofać się najwcześniej),
+ * - ciśnienie roty = NAJNIŻSZE z ostatniego odczytu,
+ * - stan = porównanie tych dwóch wartości.
+ */
+export function rotaStatus(rota, settings) {
+  const entry = rota.readings.find((r) => r.type === 'entry')
+  const wp = rota.readings.find((r) => r.type === 'workpoint')
   const progs = rotaPrognoses(rota, settings.reserve)
-  return rota.members.map((name, i) => {
-    const p = lastPressure(rota, i)
-    const prog = progs[i]
-    return {
+  const finite = progs.filter(Number.isFinite)
+  const prog = finite.length ? Math.max(...finite) : null
+  const critical = prog === null ? -1 : progs.indexOf(prog)
+  const last = rota.readings[rota.readings.length - 1]
+  const pressure = readingMin(last)
+  return {
+    prognosis: prog,
+    criticalName: critical >= 0 ? rota.members[critical] || `Ratownik ${critical + 1}` : null,
+    pressure,
+    lastAt: last?.at ?? null,
+    lastType: last?.type ?? null,
+    margin: Number.isFinite(pressure) && Number.isFinite(prog) ? pressure - prog : null,
+    state: memberState(pressure, prog, settings.marginBar),
+    members: rota.members.map((name, i) => ({
       name,
-      entry: rota.readings.find((r) => r.type === 'entry')?.p[i] ?? null,
-      workPoint: rota.readings.find((r) => r.type === 'workpoint')?.p[i] ?? null,
-      pressure: p,
-      prognosis: prog,
-      margin: Number.isFinite(p) && Number.isFinite(prog) ? p - prog : null,
-      state: memberState(p, prog, settings.marginBar),
-    }
-  })
+      entry: entry?.p[i] ?? null,
+      workPoint: wp?.p[i] ?? null,
+      prognosis: progs[i],
+      critical: i === critical,
+    })),
+  }
 }
 
 export const ACTIVE_STATUSES = ['in', 'withdrawing']
@@ -77,19 +89,18 @@ export function nextCheckDue(rota, intervalMin) {
 }
 
 /**
- * Szacunek czasu [min] do osiągnięcia prognozy, z tempa spadku między dwoma ostatnimi odczytami.
- * Tylko orientacyjnie – decyduje kontrola ciśnienia.
+ * Szacunek czasu [min] do osiągnięcia WYCOFAJ roty, z tempa spadku najniższego ciśnienia
+ * między dwoma ostatnimi odczytami. Tylko orientacyjnie – decyduje kontrola ciśnienia.
  */
-export function estimateMinutesToPrognosis(rota, i, prog) {
-  const pts = rota.readings.filter((r) => Number.isFinite(r.p[i]))
+export function estimateMinutesToPrognosis(rota, prog) {
+  const pts = rota.readings.filter((r) => Number.isFinite(readingMin(r)))
   if (pts.length < 2 || !Number.isFinite(prog)) return null
   const a = pts[pts.length - 2]
   const b = pts[pts.length - 1]
   const minutes = (b.at - a.at) / 60_000
-  const drop = a.p[i] - b.p[i]
+  const drop = readingMin(a) - readingMin(b)
   if (minutes < 0.5 || drop <= 0) return null
-  const rate = drop / minutes // bar/min
-  return Math.max(0, (b.p[i] - prog) / rate)
+  return Math.max(0, (readingMin(b) - prog) / (drop / minutes))
 }
 
 // ---------- formatowanie ----------

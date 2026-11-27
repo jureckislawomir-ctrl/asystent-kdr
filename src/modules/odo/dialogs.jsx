@@ -5,7 +5,7 @@ import { useOdo } from './OdoContext'
 import {
   db, createRota, assignRA, enterRA, addReading, exitRota, recordDecision, updateActionSettings, endAction,
 } from './db'
-import { prognosis, rotaMemberStatus, lastPressure, ACTIVE_STATUSES } from './logic'
+import { prognosis, rotaStatus, readingMin, ACTIVE_STATUSES } from './logic'
 import { unlockAudio, testAlarm } from './audio'
 import { updateDraft } from './drafts'
 import { fmtHM } from './logic'
@@ -257,7 +257,8 @@ export function PressureDialog({ type, rotaId }) {
   const { rotas, settings, close, open, dialog } = useOdo()
   const rota = rotas.find((r) => r.id === rotaId)
   const d = dialog?.draft ?? {}
-  const [vals, setVals] = useState(() => d.vals ?? (rota ? rota.members.map(() => '') : []))
+  // kontrola: jedno pole – najniższe ciśnienie w rocie (dwóch wchodzi, dwóch wychodzi); pozostałe odczyty: po jednym na ratownika
+  const [vals, setVals] = useState(() => d.vals ?? (type === 'check' ? [''] : rota ? rota.members.map(() => '') : []))
   const [active, setActive] = useState(() => firstEmpty(d.vals))
   const [off, setOff] = useState(d.off ?? 0)
   const [spolem, setSpolem] = useState(d.spolem ?? {})
@@ -270,16 +271,24 @@ export function PressureDialog({ type, rotaId }) {
   const entry = rota.readings.find((r) => r.type === 'entry')
   const wp = rota.readings.find((r) => r.type === 'workpoint')
 
+  const rs = rotaStatus(rota, settings)
+  const fieldNames = type === 'check' ? ['Najniższe ciśnienie w rocie'] : rota.members
+
   const extra = (i) => {
     const p = nums[i]
-    const prev = lastPressure(rota, i)
     if (type === 'enterRA') return Number.isFinite(p) ? `${entryHint(vals[i])} · WYCOFAJ: ${prognosis(p, null, settings.reserve)} bar` : entryHint(vals[i])
     if (type === 'workpoint') {
       const prog = Number.isFinite(p) ? prognosis(entry?.p[i], p, settings.reserve) : null
       return `WEJŚCIE ${entry?.p[i] ?? '—'} bar${prog != null ? ` → WYCOFAJ: ${prog} bar` : ''}`
     }
-    const prog = prognosis(entry?.p[i], wp?.p[i], settings.reserve)
-    let s = `WYCOFAJ ${prog ?? '—'} · poprzednio ${prev ?? '—'} bar`
+    if (type === 'exit') {
+      const prev = readingMin(rota.readings[rota.readings.length - 1])
+      return `ciśnienie przy wyjściu · ostatnia kontrola (najniższe) ${prev ?? '—'} bar`
+    }
+    // kontrola – porównanie z WYCOFAJ roty (najwyższa prognoza w rocie)
+    const prev = rs.pressure
+    const prog = rs.prognosis
+    let s = `WYCOFAJ roty ${prog ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''} · poprzednio ${prev ?? '—'} bar`
     if (Number.isFinite(p) && Number.isFinite(prev) && p > prev + 5) s += ' · ⚠ wyżej niż poprzednio – sprawdź'
     else if (Number.isFinite(p) && Number.isFinite(prog)) {
       const d = p - prog
@@ -305,8 +314,8 @@ export function PressureDialog({ type, rotaId }) {
     await addReading(rota.id, type, nums, at)
     // po odczycie: czy potrzebna decyzja KDR?
     const fresh = await db.rotas.get(rota.id)
-    const status = rotaMemberStatus(fresh, settings)
-    if (fresh.status === 'in' && status.some((m) => m.state === 'near' || m.state === 'reached')) open('decision', { rotaId: rota.id })
+    const state = rotaStatus(fresh, settings).state
+    if (fresh.status === 'in' && (state === 'near' || state === 'reached')) open('decision', { rotaId: rota.id })
     else close()
   })
 
@@ -332,7 +341,10 @@ export function PressureDialog({ type, rotaId }) {
             Ciśnienie po dojściu do miejsca pracy. WYCOFAJ = {settings.reserve} + (WEJŚCIE − PRACA). W razie wątpliwości lepiej zgłosić PRACĘ wcześniej.
           </p>
         )}
-        <PressureFields names={rota.members} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} />
+        {type === 'check' && (
+          <p className="text-muted">Podaj NAJNIŻSZE ciśnienie zgłoszone przez rotę – dwóch wchodzi, dwóch wychodzi.</p>
+        )}
+        <PressureFields names={fieldNames} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} />
         <TimeAdjust offsetMin={off} setOffsetMin={setOff} base={dialog?.restored ? dialog.baseAt : null} />
       </div>
     </Dialog>
@@ -347,35 +359,35 @@ export function DecisionDialog({ rotaId, manual = false }) {
   const rota = rotas.find((r) => r.id === rotaId)
   const [step, setStep] = useState('choose')
   if (!rota) return null
-  const status = rotaMemberStatus(rota, settings)
-  const reached = status.filter((m) => m.state === 'reached')
-  const near = status.filter((m) => m.state === 'near')
-  const fmt = (list) => list.map((m) => `${m.name || 'ratownik'} ${m.pressure}/${m.prognosis} bar`).join(', ')
+  const rs = rotaStatus(rota, settings)
+  const reachedNow = rs.state === 'reached'
+  const desc = `najniższe ${rs.pressure ?? '—'} bar / WYCOFAJ roty ${rs.prognosis ?? '—'}${rs.criticalName ? ` (${rs.criticalName})` : ''}`
 
   const withdraw = async () => {
-    await recordDecision(rota.id, 'withdraw', manual ? '' : `(${fmt([...reached, ...near])})`)
+    await recordDecision(rota.id, 'withdraw', manual ? '' : `(${desc})`)
     close()
   }
 
   return (
     <Dialog title={manual ? `Wycofanie roty – ${rota.label}` : `Decyzja KDR – ${rota.label}`} onClose={manual ? close : undefined}>
       <div className="flex flex-col gap-4">
-        <ul className="flex flex-col gap-2">
-          {status.map((m, i) => (
-            <li
-              key={i}
-              className={`flex items-center justify-between gap-3 rounded-lg border-2 border-l-8 px-3 py-2 ${
-                m.state === 'reached' ? 'border-alarm text-alarm' : m.state === 'near' ? 'border-warn text-warn' : 'border-line'
-              }`}
-            >
-              <span className="text-xl font-black">{m.name || `Ratownik ${i + 1}`}</span>
-              <span className="tabular text-xl font-bold">
-                {m.pressure ?? '—'} bar · WYCOFAJ {m.prognosis ?? '—'}
-                {m.state === 'reached' ? ' · OSIĄGNIĘTE' : m.state === 'near' ? ` · BLISKO (+${m.margin})` : ''}
-              </span>
-            </li>
-          ))}
-        </ul>
+        <div
+          className={`grid grid-cols-2 gap-3 rounded-lg border-2 border-l-8 px-4 py-3 ${
+            rs.state === 'reached' ? 'border-alarm text-alarm' : rs.state === 'near' ? 'border-warn text-warn' : 'border-line'
+          }`}
+        >
+          <div className="flex flex-col">
+            <span className="text-sm font-bold uppercase text-muted">Najniższe w rocie</span>
+            <span className="tabular text-5xl font-black">{rs.pressure ?? '—'}</span>
+          </div>
+          <div className="flex flex-col text-right">
+            <span className="text-sm font-bold uppercase text-muted">WYCOFAJ roty{rs.criticalName ? ` (${rs.criticalName})` : ''}</span>
+            <span className="tabular text-5xl font-black">{rs.prognosis ?? '—'}</span>
+          </div>
+          <span className="col-span-2 text-xl font-black">
+            {rs.state === 'reached' ? 'WYCOFAJ – OSIĄGNIĘTE' : rs.state === 'near' ? `BLISKO WYCOFAJ (+${rs.margin} bar)` : 'Powyżej WYCOFAJ'}
+          </span>
+        </div>
 
         {!manual && (
           <p className="flex items-center gap-2 rounded-lg border-2 border-warn px-3 py-2 text-lg font-black text-warn">
@@ -388,15 +400,15 @@ export function DecisionDialog({ rotaId, manual = false }) {
             <Btn variant="primary" className="min-h-20 text-2xl" onClick={withdraw}>
               WYCOFANIE ROTY
             </Btn>
-            {!manual && reached.length > 0 && (
+            {!manual && reachedNow && (
               <Btn className="min-h-20 text-xl" onClick={() => setStep('reason')}>
                 Kontynuacja poniżej WYCOFAJ…
               </Btn>
             )}
-            {!manual && reached.length === 0 && (
+            {!manual && !reachedNow && (
               <Btn
                 className="min-h-20 text-xl"
-                onClick={async () => (await recordDecision(rota.id, 'informed', `(${fmt(near)}) – kontynuacja.`), close())}
+                onClick={async () => (await recordDecision(rota.id, 'informed', `(${desc}) – kontynuacja.`), close())}
               >
                 Rota poinformowana – kontynuacja
               </Btn>
@@ -412,7 +424,7 @@ export function DecisionDialog({ rotaId, manual = false }) {
                 <Btn
                   key={r}
                   className="min-h-16"
-                  onClick={async () => (await recordDecision(rota.id, 'continue', `${fmt(reached)}. Powód: ${r}.`), close())}
+                  onClick={async () => (await recordDecision(rota.id, 'continue', `${desc}. Powód: ${r}.`), close())}
                 >
                   {r}
                 </Btn>
