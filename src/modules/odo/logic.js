@@ -6,6 +6,7 @@ export const DEFAULT_SETTINGS = {
   intervalMin: 5, // interwał kontroli ciśnienia [min]
   marginBar: 10, // pytanie o decyzję KDR, gdy ciśnienie ≤ prognoza + margines
   retentionDays: 90, // przechowywanie zakończonych akcji
+  basePressure: 300, // wartość wstawiana przy WEJŚCIU (butla 300 bar) – poprawiana ±10 lub wpisaniem
 }
 
 /**

@@ -1,9 +1,10 @@
-import { Lock, Sun, Moon, Wifi, WifiOff, Eye, EyeOff, CircleCheck, CircleAlert, HardDrive, TriangleAlert } from 'lucide-react'
+import { Lock, Sun, Moon, Wifi, WifiOff, Eye, EyeOff, CircleCheck, CircleAlert, HardDrive, TriangleAlert, BatteryLow, BatteryWarning } from 'lucide-react'
 import { useClock, fmtTime } from '../hooks/useClock'
 
 const TONE = {
   ok: 'border-ok text-ok',
   warn: 'border-warn text-warn',
+  alarm: 'border-alarm text-alarm border-4',
   neutral: 'border-line text-fg',
 }
 
@@ -51,7 +52,7 @@ export function storageChip(storage) {
   }
 }
 
-export default function TopBar({ theme, onToggleTheme, online, wakeLock, pwa, storage, onLock }) {
+export default function TopBar({ theme, onToggleTheme, online, wakeLock, pwa, storage, battery, onLock }) {
   const now = useClock()
   const night = theme === 'night'
   const app = appChip(pwa)
@@ -73,6 +74,14 @@ export default function TopBar({ theme, onToggleTheme, online, wakeLock, pwa, st
       {/* Wskaźniki techniczne widoczne tylko, gdy coś wymaga uwagi */}
       {!app.ok && <Chip {...app} />}
       {!mem.ok && <Chip {...mem} />}
+      {battery?.low && (
+        <Chip
+          icon={battery.critical ? BatteryWarning : BatteryLow}
+          label={`Bateria ${battery.level}%`}
+          tone={battery.critical ? 'alarm' : 'warn'}
+          description={`Bateria tabletu ${battery.level}% – podłącz ładowarkę.`}
+        />
+      )}
 
       {wakeLock.supported ? (
         <Chip

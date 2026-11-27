@@ -99,8 +99,8 @@ const SPOLEM = [
 function SpolemPicker({ value, onChange }) {
   return (
     <section>
-      <h3 className="mb-2 text-lg font-black">Kontrola przed WEJŚCIEM – SPOŁEM</h3>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <h3 className="mb-2 text-lg font-black">SPOŁEM</h3>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 landscape:grid-cols-2">
         {SPOLEM.map(([k, label]) => {
           const on = !!value[k]
           return (
@@ -109,13 +109,13 @@ function SpolemPicker({ value, onChange }) {
               type="button"
               onClick={() => onChange({ ...value, [k]: !on })}
               aria-pressed={on}
-              className={`flex min-h-16 items-center gap-3 rounded-lg border-2 px-3 text-left font-bold ${
+              className={`flex min-h-14 items-center gap-2 rounded-lg border-2 px-2 text-left font-bold leading-tight ${
                 on ? 'border-ok bg-surface text-ok' : 'border-line bg-bg text-fg'
               }`}
             >
               <span className="w-8 text-3xl font-black text-accent">{k}</span>
               <span className="flex-1">{label}</span>
-              {on ? <Check size={28} /> : <span className="text-sm text-muted">—</span>}
+              {on ? <Check size={26} className="shrink-0" /> : <span className="text-sm text-muted">—</span>}
             </button>
           )
         })}
@@ -130,23 +130,32 @@ function MembersEditor({ members, setMembers }) {
   return (
     <section>
       <h3 className="mb-2 text-lg font-black">Ratownicy (imię lub pseudonim)</h3>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="flex gap-2">
         {members.map((m, i) => (
           <input
             key={i}
-            className={inputCls}
+            className={`${inputCls} min-w-0 flex-1`}
             value={m}
             placeholder={`Ratownik ${i + 1}`}
             onChange={(e) => setMembers(members.map((x, k) => (k === i ? e.target.value : x)))}
           />
         ))}
-      </div>
-      <div className="mt-2 flex gap-2">
-        {members.length < 3 && <Btn onClick={() => setMembers([...members, ''])}>+ trzeci ratownik</Btn>}
-        {members.length > 2 && <Btn onClick={() => setMembers(members.slice(0, -1))}>− usuń trzeciego</Btn>}
+        {members.length < 3 ? (
+          <Btn className="shrink-0 px-3" onClick={() => setMembers([...members, ''])} aria-label="Dodaj trzeciego ratownika">+ 3.</Btn>
+        ) : (
+          <Btn className="shrink-0 px-3" onClick={() => setMembers(members.slice(0, -1))} aria-label="Usuń trzeciego ratownika">− 3.</Btn>
+        )}
       </div>
     </section>
   )
+}
+
+// okna z SPOŁEM: w poziomie dwie kolumny (dane | ciśnienia + klawiatura) – całość bez przewijania
+const twoCols = 'flex flex-col gap-4 landscape:grid landscape:grid-cols-[1fr_minmax(340px,44%)] landscape:items-start'
+
+const entryExtra = (v, settings) => {
+  const p = Number(v)
+  return v && Number.isFinite(p) ? `${entryHint(v)} · WYCOFAJ: ${prognosis(p, null, settings.reserve)}` : entryHint(v)
 }
 
 const entryHint = (v) => {
@@ -163,11 +172,12 @@ export function NewRotaDialog() {
   const [label, setLabel] = useState(d.label ?? `Rota ${n}`)
   const [members, setMembers] = useState(d.members ?? ['', ''])
   const [spolem, setSpolem] = useState(d.spolem ?? {})
-  const [vals, setVals] = useState(d.vals ?? ['', ''])
+  const base = String(settings.basePressure)
+  const [vals, setVals] = useState(d.vals ?? [base, base])
   const [active, setActive] = useState(() => firstEmpty(d.vals))
   const [off, setOff] = useState(d.off ?? 0)
   useDraftSync({ label, members, spolem, vals, off })
-  const values = members.map((_, i) => vals[i] ?? '')
+  const values = members.map((_, i) => vals[i] ?? base)
   const nums = toNums(values)
   const ok = label.trim() && allValid(nums)
 
@@ -192,29 +202,30 @@ export function NewRotaDialog() {
         </>
       }
     >
-      <div className="flex flex-col gap-5">
-        <RestoredNote dialog={dialog} />
-        <section className="grid gap-2 sm:grid-cols-[200px_1fr] sm:items-center">
-          <label className="text-lg font-black" htmlFor="rota-label">Kryptonim roty</label>
-          <input id="rota-label" className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} />
-        </section>
-        <MembersEditor members={members} setMembers={setMembers} />
-        <SpolemPicker value={spolem} onChange={setSpolem} />
+      <RestoredNote dialog={dialog} />
+      <div className={twoCols}>
+        <div className="flex flex-col gap-4">
+          <section className="grid grid-cols-[auto_1fr] items-center gap-3">
+            <label className="text-lg font-black" htmlFor="rota-label">Kryptonim</label>
+            <input id="rota-label" className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} />
+          </section>
+          <MembersEditor members={members} setMembers={setMembers} />
+          <SpolemPicker value={spolem} onChange={setSpolem} />
+          <TimeAdjust offsetMin={off} setOffsetMin={setOff} label="Godzina WEJŚCIA" base={dialog?.restored ? dialog.baseAt : null} />
+        </div>
         <section>
           <h3 className="mb-2 text-lg font-black">Ciśnienie – WEJŚCIE</h3>
           <PressureFields
+            stacked
+            prefill={settings.basePressure}
             names={members}
             values={values}
             setValues={setVals}
             active={Math.min(active, members.length - 1)}
             setActive={setActive}
-            extra={(i) => {
-              const p = nums[i]
-              return Number.isFinite(p) ? `${entryHint(values[i])} · WYCOFAJ: ${prognosis(p, null, settings.reserve)} bar` : entryHint(values[i])
-            }}
+            extra={(i) => entryExtra(values[i], settings)}
           />
         </section>
-        <TimeAdjust offsetMin={off} setOffsetMin={setOff} label="Godzina WEJŚCIA" base={dialog?.restored ? dialog.baseAt : null} />
       </div>
     </Dialog>
   )
@@ -258,7 +269,9 @@ export function PressureDialog({ type, rotaId }) {
   const rota = rotas.find((r) => r.id === rotaId)
   const d = dialog?.draft ?? {}
   // kontrola: jedno pole – najniższe ciśnienie w rocie (dwóch wchodzi, dwóch wychodzi); pozostałe odczyty: po jednym na ratownika
-  const [vals, setVals] = useState(() => d.vals ?? (type === 'check' ? [''] : rota ? rota.members.map(() => '') : []))
+  const [vals, setVals] = useState(() =>
+    d.vals ?? (type === 'check' ? [''] : rota ? rota.members.map(() => (type === 'enterRA' ? String(settings.basePressure) : '')) : []),
+  )
   const [active, setActive] = useState(() => firstEmpty(d.vals))
   const [off, setOff] = useState(d.off ?? 0)
   const [spolem, setSpolem] = useState(d.spolem ?? {})
@@ -276,7 +289,7 @@ export function PressureDialog({ type, rotaId }) {
 
   const extra = (i) => {
     const p = nums[i]
-    if (type === 'enterRA') return Number.isFinite(p) ? `${entryHint(vals[i])} · WYCOFAJ: ${prognosis(p, null, settings.reserve)} bar` : entryHint(vals[i])
+    if (type === 'enterRA') return entryExtra(vals[i], settings)
     if (type === 'workpoint') {
       const prog = Number.isFinite(p) ? prognosis(entry?.p[i], p, settings.reserve) : null
       return `WEJŚCIE ${entry?.p[i] ?? '—'} bar${prog != null ? ` → WYCOFAJ: ${prog} bar` : ''}`
@@ -297,6 +310,15 @@ export function PressureDialog({ type, rotaId }) {
     }
     return s
   }
+
+  // ±10 przy pustym polu liczy od poprzedniego odczytu (kontrola: najniższe w rocie)
+  const last = rota.readings[rota.readings.length - 1]
+  const bases =
+    type === 'check'
+      ? [rs.pressure]
+      : type === 'workpoint'
+        ? rota.members.map((_, i) => entry?.p[i])
+        : rota.members.map((_, i) => (last?.p.length === rota.members.length ? last.p[i] : readingMin(last)))
 
   const save = run(async () => {
     unlockAudio()
@@ -333,20 +355,35 @@ export function PressureDialog({ type, rotaId }) {
         </>
       }
     >
-      <div className="flex flex-col gap-5">
-        <RestoredNote dialog={dialog} />
-        {type === 'enterRA' && <SpolemPicker value={spolem} onChange={setSpolem} />}
+      <RestoredNote dialog={dialog} />
+      {type === 'enterRA' ? (
+        <div className={twoCols}>
+          <div className="flex flex-col gap-4">
+            <SpolemPicker value={spolem} onChange={setSpolem} />
+            <TimeAdjust offsetMin={off} setOffsetMin={setOff} label="Godzina WEJŚCIA" base={dialog?.restored ? dialog.baseAt : null} />
+          </div>
+          <PressureFields
+            stacked
+            prefill={settings.basePressure}
+            names={fieldNames}
+            values={vals}
+            setValues={setVals}
+            active={active}
+            setActive={setActive}
+            extra={extra}
+          />
+        </div>
+      ) : (
+      <div className="flex flex-col gap-4">
         {type === 'workpoint' && (
           <p className="text-muted">
             Ciśnienie po dojściu do miejsca pracy. WYCOFAJ = {settings.reserve} + (WEJŚCIE − PRACA). W razie wątpliwości lepiej zgłosić PRACĘ wcześniej.
           </p>
         )}
-        {type === 'check' && (
-          <p className="text-muted">Podaj NAJNIŻSZE ciśnienie zgłoszone przez rotę – dwóch wchodzi, dwóch wychodzi.</p>
-        )}
-        <PressureFields names={fieldNames} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} />
+        <PressureFields names={fieldNames} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} bases={bases} />
         <TimeAdjust offsetMin={off} setOffsetMin={setOff} base={dialog?.restored ? dialog.baseAt : null} />
       </div>
+      )}
     </Dialog>
   )
 }
@@ -444,7 +481,7 @@ export function DecisionDialog({ rotaId, manual = false }) {
 function Stepper({ label, value, set, step, min, max, unit }) {
   return (
     <div className="flex flex-wrap items-center gap-3">
-      <span className="min-w-56 text-lg font-bold">{label}</span>
+      <span className="w-80 max-w-full text-lg font-bold">{label}</span>
       <Btn onClick={() => set(Math.max(min, value - step))}>−</Btn>
       <span className="tabular min-w-24 text-center text-3xl font-black">
         {value} <span className="text-base text-muted">{unit}</span>
@@ -456,7 +493,7 @@ function Stepper({ label, value, set, step, min, max, unit }) {
 
 export function SettingsDialog() {
   const { action, settings, close } = useOdo()
-  const [s, setS] = useState({ reserve: settings.reserve, intervalMin: settings.intervalMin, marginBar: settings.marginBar })
+  const [s, setS] = useState({ reserve: settings.reserve, intervalMin: settings.intervalMin, marginBar: settings.marginBar, basePressure: settings.basePressure })
   return (
     <Dialog
       title="Ustawienia kontroli ODO"
@@ -467,6 +504,7 @@ export function SettingsDialog() {
         <Stepper label="Rezerwa obliczeniowa" value={s.reserve} set={(v) => setS({ ...s, reserve: v })} step={5} min={40} max={80} unit="bar" />
         <Stepper label="Kontrola ciśnienia co" value={s.intervalMin} set={(v) => setS({ ...s, intervalMin: v })} step={1} min={1} max={15} unit="min" />
         <Stepper label="Ostrzeżenie nad WYCOFAJ" value={s.marginBar} set={(v) => setS({ ...s, marginBar: v })} step={5} min={0} max={30} unit="bar" />
+        <Stepper label="Ciśnienie bazowe przy WEJŚCIU" value={s.basePressure} set={(v) => setS({ ...s, basePressure: v })} step={10} min={200} max={330} unit="bar" />
         <NotificationSetting />
         <div className="flex flex-wrap items-center gap-3 border-t-2 border-line pt-3">
           <Btn onClick={testAlarm}>Test dźwięku i wibracji</Btn>

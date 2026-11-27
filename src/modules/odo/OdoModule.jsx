@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
-import { Plus, ScrollText, Settings, Flag, History, ArrowLeft, Share2, Printer, Trash2, FileText, Gauge } from 'lucide-react'
+import { Plus, ScrollText, Settings, Flag, History, ArrowLeft, Share2, Printer, Trash2, FileText, Gauge, BellOff } from 'lucide-react'
 import { Btn, Dialog } from '../../components/ui'
 import { useOdo } from './OdoContext'
 import { RotaCard, RAPlaceholder, OutRow } from './RotaCard'
@@ -18,35 +18,31 @@ export default function OdoModule() {
 }
 
 function Board({ setView }) {
-  const { action, rotas, settings, open } = useOdo()
+  const { action, rotas, open } = useOdo()
   const entryAt = (r) => r.readings.find((x) => x.type === 'entry')?.at ?? Infinity
   const active = rotas.filter((r) => ACTIVE_STATUSES.includes(r.status)).sort((a, b) => entryAt(a) - entryAt(b))
   const standbyRA = rotas.filter((r) => r.status === 'standby')
   const out = rotas.filter((r) => r.status === 'out')
-  const people = active.reduce((n, r) => n + r.members.length, 0)
+  // napisy na przyciskach tylko na szerokim ekranie; w pionie same ikony (z opisem dla czytnika)
+  const lbl = (t) => <span className="hidden lg:inline">{t}</span>
 
   return (
-    <div className="flex flex-col gap-4 p-3">
-      <div className="no-print flex flex-wrap items-center gap-2">
-        <div className="mr-auto flex flex-col">
-          <h1 className="flex items-center gap-2 text-2xl font-black">
-            <Gauge size={28} /> Kontrola rot ODO
-          </h1>
-          <span className="text-sm text-muted">
-            {action ? `Od ${fmtHM(action.startedAt)} · ` : ''}rezerwa {settings.reserve} bar · kontrola co {settings.intervalMin} min
-            {action ? ` · w strefie: ${active.length} rot, ${people} os.` : ''}
-          </span>
-        </div>
+    <div className="flex flex-col gap-2 p-2">
+      <div className="no-print flex items-center gap-2">
+        <h1 className="mr-auto flex items-center gap-2 text-xl font-black">
+          <Gauge size={26} /> ODO
+        </h1>
+        <NotificationHint />
         <Btn variant="primary" className="text-xl" onClick={() => open('newRota')}>
           <Plus size={24} /> Rota
         </Btn>
         {action && (
           <>
-            <Btn onClick={() => setView({ name: 'journal' })}>
-              <ScrollText size={22} /> Dziennik
+            <Btn onClick={() => setView({ name: 'journal' })} aria-label="Dziennik">
+              <ScrollText size={22} /> {lbl('Dziennik')}
             </Btn>
-            <Btn onClick={() => setView({ name: 'report', id: action.id, from: 'board' })}>
-              <FileText size={22} /> Raport
+            <Btn onClick={() => setView({ name: 'report', id: action.id, from: 'board' })} aria-label="Raport">
+              <FileText size={22} /> {lbl('Raport')}
             </Btn>
           </>
         )}
@@ -54,25 +50,20 @@ function Board({ setView }) {
           <Settings size={22} />
         </Btn>
         {action ? (
-          <Btn variant="warn" onClick={() => open('endAction')}>
-            <Flag size={22} /> Zakończ
+          <Btn variant="warn" onClick={() => open('endAction')} aria-label="Zakończ">
+            <Flag size={22} /> {lbl('Zakończ')}
           </Btn>
         ) : (
-          <Btn onClick={() => setView({ name: 'history' })}>
-            <History size={22} /> Historia
+          <Btn onClick={() => setView({ name: 'history' })} aria-label="Historia">
+            <History size={22} /> {lbl('Historia')}
           </Btn>
         )}
       </div>
 
-      <NotificationHint />
-
-      {!action && (
-        <div className="rounded-xl border-2 border-line bg-surface p-5">
+      {!action && standbyRA.length === 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border-2 border-line bg-surface p-4">
           <p className="text-xl font-black">Brak aktywnej kontroli ODO.</p>
-          <p className="mt-1 text-muted">
-            Dodaj pierwszą rotę przyciskiem „+ Rota” – kontrola rozpocznie się automatycznie. Rotę asekuracyjną możesz wyznaczyć przed WEJŚCIEM pierwszej roty.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
             <Btn variant="primary" className="min-h-16 text-xl" onClick={() => open('newRota')}>
               <Plus size={24} /> Nowa rota – WEJŚCIE
             </Btn>
@@ -84,7 +75,7 @@ function Board({ setView }) {
       )}
 
       {(action || standbyRA.length > 0) && (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div className="grid grid-cols-2 gap-2 landscape:grid-cols-4">
           {active.map((r) => (
             <RotaCard key={r.id} rota={r} />
           ))}
@@ -96,9 +87,9 @@ function Board({ setView }) {
       )}
 
       {out.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-lg font-black text-muted">Wyszły ze strefy</h2>
-          <ul className="flex flex-col gap-2">
+        <section className="flex flex-wrap items-center gap-2">
+          <h2 className="text-sm font-black uppercase text-muted">Wyszły:</h2>
+          <ul className="flex flex-wrap gap-2">
             {out.map((r) => (
               <OutRow key={r.id} rota={r} />
             ))}
@@ -109,18 +100,14 @@ function Board({ setView }) {
   )
 }
 
+// Powiadomienia: przycisk tylko, gdy nie zdecydowano (zgoda świadomie – nigdy w trakcie wpisu)
 function NotificationHint() {
   const [st, setSt] = useState(notificationStatus)
   if (st !== 'default') return null
   return (
-    <div className="no-print flex flex-wrap items-center gap-3 rounded-lg border-2 border-warn px-3 py-2">
-      <span className="mr-auto font-bold text-warn">
-        Powiadomienia wyłączone – gdy aplikacja jest w tle, alarm kontroli może nie dotrzeć.
-      </span>
-      <Btn variant="warn" onClick={async () => setSt(await requestNotifications())}>
-        Włącz powiadomienia
-      </Btn>
-    </div>
+    <Btn variant="warn" onClick={async () => setSt(await requestNotifications())} aria-label="Włącz powiadomienia" title="Powiadomienia wyłączone – gdy aplikacja jest w tle, alarm kontroli może nie dotrzeć.">
+      <BellOff size={22} /> <span className="hidden xl:inline">Powiadomienia</span>
+    </Btn>
   )
 }
 

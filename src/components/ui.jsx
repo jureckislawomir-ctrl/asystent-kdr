@@ -41,38 +41,62 @@ export function Dialog({ title, onClose, children, footer, wide = false }) {
   )
 }
 
-/** Duża klawiatura numeryczna (rękawice). */
-export function NumPad({ onDigit, onBackspace, onNext, nextLabel = 'Dalej' }) {
+/**
+ * Duża klawiatura numeryczna (rękawice), 4 kolumny:
+ *   1 2 3 −10
+ *   4 5 6 +10
+ *   7 8 9  ⌫
+ *  [300] 0 Dalej
+ * onStep(±10) – szybka zmiana ciśnienia; onBase – wstawia wartość bazową (np. 300 przy WEJŚCIU).
+ */
+export function NumPad({ onDigit, onBackspace, onNext, onStep, onBase, baseLabel, nextLabel = 'Dalej' }) {
   const key = 'flex min-h-16 items-center justify-center rounded-lg border-2 border-line bg-surface text-3xl font-black active:bg-fg active:text-bg'
+  const side = `${key} text-2xl`
+  const d = (n) => (
+    <button key={n} type="button" className={key} onClick={() => onDigit(String(n))}>
+      {n}
+    </button>
+  )
   return (
-    <div className="grid grid-cols-3 gap-2">
-      {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((d) => (
-        <button key={d} type="button" className={key} onClick={() => onDigit(String(d))}>
-          {d}
-        </button>
-      ))}
+    <div className="grid grid-cols-4 gap-2">
+      {d(1)}{d(2)}{d(3)}
+      <button type="button" className={side} onClick={() => onStep?.(-10)} aria-label="Minus 10 bar">−10</button>
+      {d(4)}{d(5)}{d(6)}
+      <button type="button" className={side} onClick={() => onStep?.(10)} aria-label="Plus 10 bar">+10</button>
+      {d(7)}{d(8)}{d(9)}
       <button type="button" className={key} onClick={onBackspace} aria-label="Usuń cyfrę">
         <Delete size={32} />
       </button>
-      <button type="button" className={key} onClick={() => onDigit('0')}>
-        0
-      </button>
-      <button type="button" className={`${key} text-xl`} onClick={onNext}>
+      {onBase ? (
+        <button type="button" className={side} onClick={onBase} aria-label={`Wartość bazowa ${baseLabel}`}>
+          {baseLabel}
+        </button>
+      ) : (
+        <span />
+      )}
+      {d(0)}
+      <button type="button" className={`${key} col-span-2 text-xl`} onClick={onNext}>
         {nextLabel}
       </button>
     </div>
   )
 }
 
+const MAX_BAR = 400
+
 /**
  * Wpisywanie ciśnień kilku ratowników jedną klawiaturą.
  * values: tablica tekstów; active: indeks aktywnego pola; po 3 cyfrach przechodzi do następnego.
  * extra(i): dodatkowa informacja pod polem (np. prognoza, ostrzeżenie).
+ * prefill: wartość bazowa (np. 300 przy WEJŚCIU) – pierwsza wpisana cyfra ją zastępuje, ±10 ją zmienia.
+ * bases[i]: od czego liczyć ±10, gdy pole jest puste (np. poprzedni odczyt).
+ * stacked: pola nad klawiaturą (w poziomie, w oknach dwukolumnowych).
  */
-export function PressureFields({ names, values, setValues, active, setActive, extra }) {
+export function PressureFields({ names, values, setValues, active, setActive, extra, prefill = null, bases = [], stacked = false }) {
   // aktualny stan w refach – kolejne stuknięcia nie czekają na odświeżenie ekranu
   const valsRef = useRef(values)
   const activeRef = useRef(active)
+  const touchedRef = useRef([])
   useEffect(() => {
     valsRef.current = values
     activeRef.current = active
@@ -83,17 +107,26 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
     setValues(next)
     setActive(nextActive)
   }
-  const setVal = (i, v) => commit(names.map((_, k) => (k === i ? v : valsRef.current[k] ?? '')))
+  const setVal = (i, v, nextActive) => commit(names.map((_, k) => (k === i ? v : valsRef.current[k] ?? '')), nextActive)
+  const isBase = (i) => prefill !== null && !touchedRef.current[i] && (valsRef.current[i] ?? '') === String(prefill)
   const digit = (d) => {
     const a = activeRef.current
-    const cur = valsRef.current[a] ?? ''
+    const cur = isBase(a) ? '' : valsRef.current[a] ?? '' // pierwsza cyfra zastępuje wartość bazową
+    touchedRef.current[a] = true
     if (cur.length >= 3) return
     const v = (cur + d).replace(/^0+(?=\d)/, '')
-    const next = names.map((_, k) => (k === a ? v : valsRef.current[k] ?? ''))
-    commit(next, v.length === 3 && a < names.length - 1 ? a + 1 : a)
+    setVal(a, v, v.length === 3 && a < names.length - 1 ? a + 1 : a)
+  }
+  const step = (delta) => {
+    const a = activeRef.current
+    const cur = valsRef.current[a] ?? ''
+    const start = cur !== '' ? Number(cur) : Number(bases[a])
+    if (!Number.isFinite(start)) return
+    touchedRef.current[a] = true
+    setVal(a, String(Math.min(MAX_BAR, Math.max(0, start + delta))))
   }
   return (
-    <div className="grid gap-4 md:grid-cols-[1fr_minmax(260px,340px)]">
+    <div className={`grid gap-3 md:grid-cols-[1fr_minmax(300px,380px)] ${stacked ? 'landscape:flex landscape:flex-col' : ''}`}>
       <div className="flex flex-col gap-2">
         {names.map((n, i) => (
           <button
@@ -104,11 +137,11 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
               i === active ? 'border-accent bg-surface' : 'border-line bg-bg'
             }`}
           >
-            <span className="flex flex-col">
+            <span className="flex min-w-0 flex-col">
               <span className="text-lg font-bold">{n || `Ratownik ${i + 1}`}</span>
               {extra && <span className="text-sm text-muted">{extra(i)}</span>}
             </span>
-            <span className="tabular min-w-24 text-right text-4xl font-black">
+            <span className="tabular min-w-24 shrink-0 text-right text-4xl font-black">
               {values[i] || '—'}
               <span className="ml-1 text-base font-bold text-muted">bar</span>
             </span>
@@ -117,8 +150,15 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
       </div>
       <NumPad
         onDigit={digit}
-        onBackspace={() => setVal(activeRef.current, (valsRef.current[activeRef.current] ?? '').slice(0, -1))}
+        onBackspace={() => {
+          const a = activeRef.current
+          touchedRef.current[a] = true
+          setVal(a, (valsRef.current[a] ?? '').slice(0, -1))
+        }}
         onNext={() => commit(valsRef.current, (activeRef.current + 1) % names.length)}
+        onStep={step}
+        onBase={prefill !== null ? () => ((touchedRef.current[activeRef.current] = false), setVal(activeRef.current, String(prefill))) : undefined}
+        baseLabel={prefill}
       />
     </div>
   )

@@ -19,6 +19,7 @@ import { useWakeLock } from './hooks/useWakeLock'
 import { useStoragePersistence } from './hooks/useStoragePersistence'
 import { useHashRoute } from './hooks/useHashRoute'
 import { usePwa } from './hooks/usePwa'
+import { useBattery } from './hooks/useBattery'
 
 export default function App() {
   return (
@@ -34,6 +35,7 @@ function Shell() {
   const wakeLock = useWakeLock()
   const storage = useStoragePersistence()
   const pwa = usePwa()
+  const battery = useBattery()
   const [route, navigate] = useHashRoute()
   const mainRef = useRef(null)
   const [locked, setLocked] = useState(false)
@@ -70,11 +72,12 @@ function Shell() {
 
   return (
     <div className="flex h-full flex-col">
-      <TopBar theme={theme} onToggleTheme={toggle} online={online} wakeLock={wakeLock} pwa={pwa} storage={storage} onLock={lock} />
+      <TopBar theme={theme} onToggleTheme={toggle} online={online} wakeLock={wakeLock} pwa={pwa} storage={storage} battery={battery} onLock={lock} />
       {pwa.needRefresh && <UpdateBanner onUpdate={pwa.applyUpdate} onLater={pwa.postponeUpdate} />}
       <DbGuard />
       <AppErrorBanner />
       <StorageErrorBanner />
+      <BatteryBanner battery={battery} />
       <AudioGuard />
 
       <div className="flex min-h-0 flex-1 flex-col landscape:flex-row">
@@ -152,6 +155,22 @@ function DbGuard() {
       </div>
     )
   return null
+}
+
+// Bateria ≤ 15% bez ładowania – czerwony pasek; „Rozumiem” ukrywa go do kolejnego spadku o 5%
+function BatteryBanner({ battery }) {
+  const [hiddenAt, setHiddenAt] = useState(null)
+  if (!battery.critical) return null
+  if (hiddenAt !== null && battery.level > hiddenAt - 5) return null
+  return (
+    <div role="alert" className="no-print flex flex-wrap items-center gap-3 border-b-4 border-alarm bg-surface px-3 py-2 text-alarm">
+      <TriangleAlert size={28} />
+      <p className="mr-auto text-lg font-black">BATERIA TABLETU {battery.level}% – PODŁĄCZ ŁADOWARKĘ.</p>
+      <button type="button" onClick={() => setHiddenAt(battery.level)} className="min-h-14 rounded-lg border-2 border-alarm px-4 font-bold">
+        Rozumiem
+      </button>
+    </div>
+  )
 }
 
 // Błąd zapisu danych – zawsze głośno, nigdy po cichu

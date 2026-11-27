@@ -7,6 +7,7 @@ import { ACTIVE_STATUSES } from '../odo/logic'
 import { useStorageEstimate } from '../../hooks/useStorageEstimate'
 import { useEffect, useState } from 'react'
 import { dbHealth } from '../odo/db'
+import { useBattery, batteryText } from '../../hooks/useBattery'
 
 const STORAGE_LABEL = { persistent: 'trwała', 'not-persistent': 'nietrwała', unsupported: 'nieobsługiwana', checking: 'sprawdzanie' }
 
@@ -14,6 +15,7 @@ export default function Pulpit({ onNavigate, pwa, storage, wakeLock }) {
   const now = useClock()
   const { rotas } = useOdo()
   const usage = useStorageEstimate()
+  const battery = useBattery()
   const [health, setHealth] = useState('baza: test…')
   useEffect(() => {
     dbHealth().then((h) => setHealth(h.ok ? `baza: ${h.ms} ms` : `BAZA: ${h.error}`))
@@ -26,6 +28,8 @@ export default function Pulpit({ onNavigate, pwa, storage, wakeLock }) {
     `blokada ekranu: ${!wakeLock.supported ? 'nieobsługiwana' : wakeLock.active ? 'aktywna' : 'nieaktywna'}`,
     usage,
     health,
+    batteryText(battery),
+    `ekran ${window.innerWidth}×${window.innerHeight}`,
   ].filter(Boolean).join(' · ')
 
   return (
@@ -44,26 +48,26 @@ export default function Pulpit({ onNavigate, pwa, storage, wakeLock }) {
         </div>
       </section>
 
-      <section aria-label="Moduły" className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-        {MODULES.filter((m) => m.id !== 'pulpit').map(({ id, title, icon: Icon, step, ready, summary }) => (
+      {/* kafelki: tylko ikona i nazwa (+ stan ODO); moduły w przygotowaniu – przygaszone */}
+      <section aria-label="Moduły" className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {MODULES.filter((m) => m.id !== 'pulpit').map(({ id, title, icon: Icon, ready }) => (
           <button
             key={id}
             type="button"
             onClick={() => onNavigate(id)}
-            className="flex min-h-28 items-start gap-4 rounded-lg border-2 border-line bg-surface p-4 text-left active:bg-fg active:text-bg"
+            className={`flex min-h-28 items-center gap-4 rounded-lg border-2 bg-surface p-4 text-left active:bg-fg active:text-bg ${
+              ready ? 'border-line' : 'border-dashed border-line text-muted'
+            }`}
           >
-            <Icon size={40} className="mt-1 shrink-0" />
-            <span className="flex flex-col gap-1">
-              <span className="text-xl font-black">{title}</span>
-              <span className="text-sm text-muted">{summary}</span>
+            <Icon size={44} className="shrink-0" />
+            <span className="flex flex-col">
+              <span className="text-2xl font-black leading-tight">{title}</span>
               {id === 'odo' && inZone.length > 0 && (
-                <span className="mt-1 text-base font-black text-ok">
-                  W strefie: {inZone.length} rot, {inZone.reduce((n, r) => n + r.members.length, 0)} os.
-                </span>
+                <span className="text-base font-black text-ok">W strefie: {inZone.length} rot</span>
               )}
               {!ready && (
-                <span className="mt-1 flex items-center gap-1 text-sm font-bold uppercase">
-                  <Construction size={18} /> Krok {step} – w przygotowaniu
+                <span className="flex items-center gap-1 text-sm font-bold">
+                  <Construction size={16} /> w przygotowaniu
                 </span>
               )}
             </span>

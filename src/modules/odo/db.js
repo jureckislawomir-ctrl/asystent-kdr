@@ -209,7 +209,7 @@ export const updateActionSettings = (actionId, settings) =>
     await db.transaction('rw', db.actions, db.events, async () => {
       await db.actions.update(actionId, { settings })
       await log(actionId, null, 'settings',
-        `Zmiana ustawień: rezerwa ${settings.reserve} bar, kontrola co ${settings.intervalMin} min, ostrzeżenie ${settings.marginBar} bar nad WYCOFAJ.`)
+        `Zmiana ustawień: rezerwa ${settings.reserve} bar, kontrola co ${settings.intervalMin} min, ostrzeżenie ${settings.marginBar} bar nad WYCOFAJ${settings.basePressure ? `, ciśnienie bazowe ${settings.basePressure} bar` : ""}.`)
     })
   })
 
