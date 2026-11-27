@@ -27,7 +27,7 @@ function Board({ setView }) {
   const lbl = (t) => <span className="hidden lg:inline">{t}</span>
 
   return (
-    <div className="flex flex-col gap-2 p-2">
+    <div className="flex min-h-full flex-col gap-2 p-2">
       <div className="no-print flex items-center gap-2">
         <h1 className="mr-auto flex items-center gap-2 text-xl font-black">
           <Gauge size={26} /> ODO
@@ -75,7 +75,8 @@ function Board({ setView }) {
       )}
 
       {(action || standbyRA.length > 0) && (
-        <div className="grid grid-cols-2 gap-2 landscape:grid-cols-4">
+        // karty wypełniają wysokość ekranu (wiersze rozciągane, ale nie niższe niż zawartość)
+        <div className="grid flex-1 auto-rows-[minmax(min-content,1fr)] grid-cols-2 gap-2 landscape:grid-cols-4">
           {active.map((r) => (
             <RotaCard key={r.id} rota={r} />
           ))}

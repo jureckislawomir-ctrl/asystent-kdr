@@ -19,6 +19,12 @@ const STATE_ROW = {
   unknown: 'border-line',
 }
 
+// Liczby rosną z wysokością ekranu (karta wypełnia ekran), ale mieszczą się w szerokości karty:
+// poziom – 4 karty obok siebie, pion – 2.
+// W poziomie (wąskie karty) etykieta nad liczbą, liczba do prawej; w pionie – obok siebie.
+const BIG_NUM = 'text-5xl landscape:text-[max(2.75rem,min(9vh,5.6vw))] portrait:text-[max(3rem,min(5vh,7vw))]'
+const BIG_TIMER = 'text-4xl landscape:text-[max(2.25rem,min(7vh,4.4vw))] portrait:text-[max(2.25rem,min(3.6vh,5.5vw))]'
+
 export function RotaCard({ rota }) {
   const { settings, open } = useOdo()
   const now = useClock().getTime()
@@ -53,27 +59,27 @@ export function RotaCard({ rota }) {
       {entry && (
         <>
           {/* minutnik kontroli */}
-          <div className={`flex items-center justify-between rounded-lg border-2 px-3 py-1 ${overdue ? 'border-4 border-alarm text-alarm' : 'border-line'}`}>
+          <div className={`flex flex-1 items-center justify-between rounded-lg border-2 px-3 py-1 landscape:flex-col landscape:items-stretch landscape:justify-center ${overdue ? 'border-4 border-alarm text-alarm' : 'border-line'}`}>
             <span className="flex items-center gap-1 text-sm font-black uppercase">
               <Timer size={18} /> {overdue ? 'Kontrola!' : 'Kontrola za'}
             </span>
-            <span className="tabular text-4xl font-black">
+            <span className={`tabular text-right font-black leading-none ${BIG_TIMER}`}>
               {left === null ? '—' : overdue ? `+${fmtDuration(-left)}` : fmtDuration(left)}
             </span>
           </div>
 
           {/* najniższe ciśnienie w rocie vs WYCOFAJ roty (dwóch wchodzi, dwóch wychodzi) */}
-          <div className={`grid grid-cols-2 rounded-lg border-2 border-l-8 px-2 py-1 ${STATE_ROW[worst]}`}>
-            <div className="flex flex-col">
-              <span className="text-xs font-black uppercase text-muted">Najniższe</span>
-              <span className="tabular text-5xl font-black leading-none">{rs.pressure ?? '—'}</span>
+          <div className={`grid flex-[2] grid-cols-2 content-center gap-y-2 rounded-lg border-2 border-l-8 px-2 py-1 landscape:grid-cols-1 ${STATE_ROW[worst]}`}>
+            <div className="flex flex-col landscape:text-right">
+              <span className="text-xs font-black uppercase text-muted landscape:text-left">Najniższe</span>
+              <span className={`tabular font-black leading-none ${BIG_NUM}`}>{rs.pressure ?? '—'}</span>
             </div>
             <div className="flex flex-col text-right">
-              <span className="truncate text-xs font-black uppercase text-muted">WYCOFAJ</span>
-              <span className="tabular text-5xl font-black leading-none">{rs.prognosis ?? '—'}</span>
+              <span className="truncate text-xs font-black uppercase text-muted landscape:text-left">WYCOFAJ</span>
+              <span className={`tabular font-black leading-none ${BIG_NUM}`}>{rs.prognosis ?? '—'}</span>
             </div>
-            {worst === 'reached' && <span className="col-span-2 mt-1 text-base font-black">WYCOFAJ – OSIĄGNIĘTE</span>}
-            {worst === 'near' && <span className="col-span-2 mt-1 text-base font-black">BLISKO WYCOFAJ (+{rs.margin})</span>}
+            {worst === 'reached' && <span className="col-span-2 text-base font-black landscape:col-span-1">WYCOFAJ – OSIĄGNIĘTE</span>}
+            {worst === 'near' && <span className="col-span-2 text-base font-black landscape:col-span-1">BLISKO WYCOFAJ (+{rs.margin})</span>}
           </div>
 
           <p className="tabular text-sm font-bold text-muted">
