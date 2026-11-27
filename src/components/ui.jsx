@@ -124,18 +124,21 @@ export function PressureFields({ names, values, setValues, active, setActive, ex
   )
 }
 
-/** Godzina zdarzenia: domyślnie „teraz”, z korektą ±1 min (nie w przyszłość). */
-export function TimeAdjust({ offsetMin, setOffsetMin, label = 'Godzina' }) {
-  const at = new Date(Date.now() + offsetMin * 60_000)
+/** Godzina zdarzenia: domyślnie „teraz” (albo pierwotna z przywróconego wpisu – base), z korektą ±1 min (nie w przyszłość). */
+export function TimeAdjust({ offsetMin, setOffsetMin, label = 'Godzina', base = null }) {
+  const at = new Date((base ?? Date.now()) + offsetMin * 60_000)
+  const canPlus = at.getTime() + 60_000 <= Date.now()
   return (
     <div className="flex flex-wrap items-center gap-3">
       <span className="text-lg font-bold">{label}:</span>
       <span className="tabular text-3xl font-black">
         {at.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
       </span>
-      <span className="text-sm text-muted">{offsetMin === 0 ? '(teraz)' : `(${offsetMin} min)`}</span>
+      <span className="text-sm text-muted">
+        {base ? '(pierwotna – z przywróconego wpisu)' : offsetMin === 0 ? '(teraz)' : `(${offsetMin} min)`}
+      </span>
       <Btn onClick={() => setOffsetMin(offsetMin - 1)}>−1 min</Btn>
-      <Btn onClick={() => setOffsetMin(Math.min(0, offsetMin + 1))} disabled={offsetMin >= 0}>
+      <Btn onClick={() => setOffsetMin(offsetMin + 1)} disabled={!canPlus}>
         +1 min
       </Btn>
     </div>

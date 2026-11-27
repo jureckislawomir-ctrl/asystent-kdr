@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { TriangleAlert, Check } from 'lucide-react'
 import { Btn, Dialog, PressureFields, TimeAdjust } from '../../components/ui'
 import { useOdo } from './OdoContext'
@@ -7,6 +7,8 @@ import {
 } from './db'
 import { prognosis, rotaMemberStatus, lastPressure, ACTIVE_STATUSES } from './logic'
 import { unlockAudio, testAlarm } from './audio'
+import { updateDraft } from './drafts'
+import { fmtHM } from './logic'
 
 /** Zapis z widocznym stanem: „Zapisywanie…”, ostrzeżenie po 3 s, komunikat błędu – nic nie ginie po cichu. */
 function useSaving() {
@@ -36,7 +38,12 @@ function SaveStatus({ st }) {
         <TriangleAlert size={22} className="shrink-0" /> Zapis nieudany: {st.error}
       </p>
     )
-  if (st.slow) return <p className="mr-auto font-bold text-warn">Zapis trwa dłużej niż zwykle…</p>
+  if (st.slow)
+    return (
+      <p className="mr-auto max-w-xl font-bold text-warn">
+        Zapis trwa dłużej niż zwykle… Jeśli to nie minie: zamknij inne okna aplikacji (np. kartę w Chrome), a w ostateczności uruchom ponownie tablet.
+      </p>
+    )
   return null
 }
 
@@ -44,6 +51,28 @@ const inputCls = 'min-h-14 w-full rounded-lg border-2 border-line bg-bg px-3 tex
 const toNums = (vals) => vals.map((v) => (v === '' || v == null ? NaN : Number(v)))
 const allValid = (nums) => nums.every((n) => Number.isFinite(n) && n >= 0 && n <= 350)
 const atFromOffset = (off) => (off === 0 ? Date.now() : Date.now() + off * 60_000)
+// godzina zdarzenia: przy przywróconym wpisie liczona od pierwotnej godziny otwarcia okna
+const eventAt = (dialog, off) => (dialog?.restored && dialog.baseAt ? dialog.baseAt + off * 60_000 : atFromOffset(off))
+
+// po przywróceniu szkicu kursor wpisu na pierwszym pustym polu
+const firstEmpty = (vals) => Math.max(0, (vals ?? []).findIndex((v) => !v))
+
+/** Zapisuje wpisane pola jako szkic (przetrwa odświeżenie). */
+function useDraftSync(data) {
+  const json = JSON.stringify(data)
+  useEffect(() => {
+    updateDraft(JSON.parse(json))
+  }, [json])
+}
+
+function RestoredNote({ dialog }) {
+  if (!dialog?.restored) return null
+  return (
+    <p className="rounded-lg border-2 border-warn px-3 py-2 font-bold text-warn">
+      Przywrócono niezapisany wpis z {fmtHM(dialog.baseAt)} (aplikacja została odświeżona). Sprawdź dane i zapisz.
+    </p>
+  )
+}
 
 // Zgoda na powiadomienia: tylko świadomie, osobnym przyciskiem – nigdy w trakcie wpisywania roty
 // (okno zgody Androida blokuje ekran do czasu odpowiedzi).
@@ -128,14 +157,16 @@ const entryHint = (v) => {
 
 // ---------- Nowa rota ----------
 export function NewRotaDialog() {
-  const { rotas, settings, close } = useOdo()
+  const { rotas, settings, close, dialog } = useOdo()
+  const d = dialog?.draft ?? {}
   const n = rotas.filter((r) => r.kind === 'rota').length + 1
-  const [label, setLabel] = useState(`Rota ${n}`)
-  const [members, setMembers] = useState(['', ''])
-  const [spolem, setSpolem] = useState({})
-  const [vals, setVals] = useState(['', ''])
-  const [active, setActive] = useState(0)
-  const [off, setOff] = useState(0)
+  const [label, setLabel] = useState(d.label ?? `Rota ${n}`)
+  const [members, setMembers] = useState(d.members ?? ['', ''])
+  const [spolem, setSpolem] = useState(d.spolem ?? {})
+  const [vals, setVals] = useState(d.vals ?? ['', ''])
+  const [active, setActive] = useState(() => firstEmpty(d.vals))
+  const [off, setOff] = useState(d.off ?? 0)
+  useDraftSync({ label, members, spolem, vals, off })
   const values = members.map((_, i) => vals[i] ?? '')
   const nums = toNums(values)
   const ok = label.trim() && allValid(nums)
@@ -143,7 +174,7 @@ export function NewRotaDialog() {
   const [run, st] = useSaving()
   const save = run(async () => {
     unlockAudio()
-    await createRota({ label: label.trim(), members: members.map((m) => m.trim()), spolem, pressures: nums, at: atFromOffset(off) })
+    await createRota({ label: label.trim(), members: members.map((m) => m.trim()), spolem, pressures: nums, at: eventAt(dialog, off) })
     close()
   })
 
@@ -162,6 +193,7 @@ export function NewRotaDialog() {
       }
     >
       <div className="flex flex-col gap-5">
+        <RestoredNote dialog={dialog} />
         <section className="grid gap-2 sm:grid-cols-[200px_1fr] sm:items-center">
           <label className="text-lg font-black" htmlFor="rota-label">Kryptonim roty</label>
           <input id="rota-label" className={inputCls} value={label} onChange={(e) => setLabel(e.target.value)} />
@@ -182,7 +214,7 @@ export function NewRotaDialog() {
             }}
           />
         </section>
-        <TimeAdjust offsetMin={off} setOffsetMin={setOff} label="Godzina WEJŚCIA" />
+        <TimeAdjust offsetMin={off} setOffsetMin={setOff} label="Godzina WEJŚCIA" base={dialog?.restored ? dialog.baseAt : null} />
       </div>
     </Dialog>
   )
@@ -190,9 +222,11 @@ export function NewRotaDialog() {
 
 // ---------- Rota asekuracyjna ----------
 export function AssignRADialog() {
-  const { close } = useOdo()
-  const [label, setLabel] = useState('RA')
-  const [members, setMembers] = useState(['', ''])
+  const { close, dialog } = useOdo()
+  const d = dialog?.draft ?? {}
+  const [label, setLabel] = useState(d.label ?? 'RA')
+  const [members, setMembers] = useState(d.members ?? ['', ''])
+  useDraftSync({ label, members })
   return (
     <Dialog
       title="Wyznacz rotę asekuracyjną"
@@ -204,6 +238,7 @@ export function AssignRADialog() {
       }
     >
       <div className="flex flex-col gap-4">
+        <RestoredNote dialog={dialog} />
         <p className="text-muted">§ 38 rozporządzenia o BHS: rota asekuracyjna w pełnej gotowości, ze sprzętem do podjęcia pracy w strefie.</p>
         <section className="grid gap-2 sm:grid-cols-[200px_1fr] sm:items-center">
           <label className="text-lg font-black" htmlFor="ra-label">Kryptonim</label>
@@ -219,12 +254,15 @@ export function AssignRADialog() {
 const TITLES = { check: 'Kontrola ciśnienia', workpoint: 'PRACA', exit: 'Wyjście ze strefy', enterRA: 'WEJŚCIE roty asekuracyjnej' }
 
 export function PressureDialog({ type, rotaId }) {
-  const { rotas, settings, close, open } = useOdo()
+  const { rotas, settings, close, open, dialog } = useOdo()
   const rota = rotas.find((r) => r.id === rotaId)
-  const [vals, setVals] = useState(() => (rota ? rota.members.map(() => '') : []))
-  const [active, setActive] = useState(0)
-  const [off, setOff] = useState(0)
-  const [spolem, setSpolem] = useState({})
+  const d = dialog?.draft ?? {}
+  const [vals, setVals] = useState(() => d.vals ?? (rota ? rota.members.map(() => '') : []))
+  const [active, setActive] = useState(() => firstEmpty(d.vals))
+  const [off, setOff] = useState(d.off ?? 0)
+  const [spolem, setSpolem] = useState(d.spolem ?? {})
+  const [run, st] = useSaving()
+  useDraftSync({ vals, off, spolem })
   if (!rota) return null
 
   const nums = toNums(vals)
@@ -251,10 +289,9 @@ export function PressureDialog({ type, rotaId }) {
     return s
   }
 
-  const [run, st] = useSaving()
   const save = run(async () => {
     unlockAudio()
-    const at = atFromOffset(off)
+    const at = eventAt(dialog, off)
     if (type === 'exit') {
       await exitRota(rota.id, nums, at)
       close()
@@ -288,6 +325,7 @@ export function PressureDialog({ type, rotaId }) {
       }
     >
       <div className="flex flex-col gap-5">
+        <RestoredNote dialog={dialog} />
         {type === 'enterRA' && <SpolemPicker value={spolem} onChange={setSpolem} />}
         {type === 'workpoint' && (
           <p className="text-muted">
@@ -295,7 +333,7 @@ export function PressureDialog({ type, rotaId }) {
           </p>
         )}
         <PressureFields names={rota.members} values={vals} setValues={setVals} active={active} setActive={setActive} extra={extra} />
-        <TimeAdjust offsetMin={off} setOffsetMin={setOff} />
+        <TimeAdjust offsetMin={off} setOffsetMin={setOff} base={dialog?.restored ? dialog.baseAt : null} />
       </div>
     </Dialog>
   )

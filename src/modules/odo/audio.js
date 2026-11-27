@@ -1,14 +1,35 @@
 // Dźwięk alarmu bez plików (Web Audio) – działa offline.
-// Android pozwala włączyć dźwięk dopiero po geście użytkownika. Gestem jest ODERWANIE palca
-// (pointerup / touchend / click), a nie samo dotknięcie (pointerdown) – dlatego nasłuchujemy tych zdarzeń.
+// Chrome pozwala grać dźwięk bez gestu aplikacjom zainstalowanym na ekranie głównym – dlatego
+// próbujemy włączyć dźwięk już przy starcie i po każdym powrocie do aplikacji.
+// W zwykłej karcie Chrome potrzebny jest gest: ODERWANIE palca (pointerup / touchend / click),
+// a nie samo dotknięcie (pointerdown).
 let ctx = null
+
+function ensureContext() {
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
+  return ctx
+}
 
 export function unlockAudio() {
   try {
-    if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)()
-    if (ctx.state !== 'running') ctx.resume().catch(() => {})
+    const c = ensureContext()
+    if (c.state !== 'running') c.resume().catch(() => {})
   } catch {
     /* brak Web Audio – zostaje alarm wizualny i wibracja */
+  }
+}
+
+/** Próba włączenia dźwięku bez gestu: przy starcie aplikacji i po powrocie z tła / wygaszenia ekranu. */
+export function initAudio() {
+  unlockAudio()
+  const onVisible = () => {
+    if (document.visibilityState === 'visible') unlockAudio()
+  }
+  document.addEventListener('visibilitychange', onVisible)
+  window.addEventListener('pageshow', onVisible)
+  return () => {
+    document.removeEventListener('visibilitychange', onVisible)
+    window.removeEventListener('pageshow', onVisible)
   }
 }
 
@@ -18,7 +39,13 @@ export const audioReady = () => !!ctx && ctx.state === 'running'
 
 /** Seria 3 sygnałów; volume 0–1. Próbuje wznowić dźwięk, jeśli system go uśpił. */
 export async function beep(volume = 0.4) {
-  if (!ctx) return
+  if (!ctx) {
+    try {
+      ensureContext()
+    } catch {
+      return
+    }
+  }
   if (ctx.state !== 'running') {
     try {
       await ctx.resume()

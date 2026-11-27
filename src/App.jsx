@@ -11,7 +11,7 @@ import AlarmHost from './modules/odo/AlarmHost'
 import AudioGuard from './modules/odo/AudioGuard'
 import { OdoProvider, useOdo } from './modules/odo/OdoContext'
 import { DialogHost } from './modules/odo/dialogs'
-import { unlockAudio, UNLOCK_EVENTS } from './modules/odo/audio'
+import { unlockAudio, initAudio, UNLOCK_EVENTS } from './modules/odo/audio'
 import { MODULES } from './config/modules'
 import { useTheme } from './hooks/useTheme'
 import { useOnlineStatus } from './hooks/useOnlineStatus'
@@ -40,8 +40,12 @@ function Shell() {
 
   // Dźwięk alarmu wymaga gestu użytkownika (oderwanie palca) – odblokowujemy przy każdym geście
   useEffect(() => {
+    const stopInit = initAudio() // zainstalowana aplikacja może grać od razu, bez dotknięcia
     UNLOCK_EVENTS.forEach((ev) => document.addEventListener(ev, unlockAudio, { capture: true, passive: true }))
-    return () => UNLOCK_EVENTS.forEach((ev) => document.removeEventListener(ev, unlockAudio, { capture: true }))
+    return () => {
+      stopInit()
+      UNLOCK_EVENTS.forEach((ev) => document.removeEventListener(ev, unlockAudio, { capture: true }))
+    }
   }, [])
 
   // Przy blokadzie przycisk „Wstecz” Androida też nie zmienia zakładki
@@ -68,6 +72,7 @@ function Shell() {
     <div className="flex h-full flex-col">
       <TopBar theme={theme} onToggleTheme={toggle} online={online} wakeLock={wakeLock} pwa={pwa} storage={storage} onLock={lock} />
       {pwa.needRefresh && <UpdateBanner onUpdate={pwa.applyUpdate} onLater={pwa.postponeUpdate} />}
+      <DbGuard />
       <AppErrorBanner />
       <StorageErrorBanner />
       <AudioGuard />
@@ -117,6 +122,36 @@ function AppErrorBanner() {
       </button>
     </div>
   )
+}
+
+// Baza nie odpowiada / aplikacja otwarta w dwóch oknach – wyraźnie, z instrukcją
+function DbGuard() {
+  const { dbStatus, otherWindow, recheckDb } = useOdo()
+  if (!dbStatus.ok)
+    return (
+      <div role="alert" className="no-print flex flex-wrap items-center gap-3 border-b-4 border-alarm bg-surface px-3 py-2 text-alarm">
+        <TriangleAlert size={28} />
+        <div className="mr-auto">
+          <p className="text-lg font-black">BAZA DANYCH NIE ODPOWIADA – zapis rot jest niemożliwy.</p>
+          <p className="font-bold">
+            1) Zamknij inne okna aplikacji (karta w Chrome, druga ikona). 2) Jeśli nie pomoże – uruchom ponownie tablet. Do tego czasu prowadź tablicę papierową.
+          </p>
+        </div>
+        <button type="button" onClick={recheckDb} className="min-h-14 rounded-lg border-2 border-alarm px-4 font-bold">
+          Sprawdź ponownie
+        </button>
+      </div>
+    )
+  if (otherWindow)
+    return (
+      <div role="alert" className="no-print flex flex-wrap items-center gap-3 border-b-4 border-warn bg-surface px-3 py-2 text-warn">
+        <TriangleAlert size={26} />
+        <p className="mr-auto text-base font-black">
+          Aplikacja jest otwarta także w innym oknie (np. karta w Chrome). Zamknij jedno z nich – dwa okna mogą zablokować zapis.
+        </p>
+      </div>
+    )
+  return null
 }
 
 // Błąd zapisu danych – zawsze głośno, nigdy po cichu
